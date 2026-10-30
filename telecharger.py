@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 import yfinance as yf
 
-TICKERS = ["VT"]  # ajouter d'autres tickers ici, ex. "ACWI", "^SSMI"
+TICKERS = ["VT", "CHF=X", "^IRX"]  # VT, USD/CHF, taux T-bill 13 semaines (%)
 CHEVAUCHEMENT_JOURS = 10  # séances récentes redemandées (corrections, cours ajusté)
 PAUSE_SECONDES = 5
 
@@ -45,7 +45,7 @@ def telecharger(ticker, **kwargs):
 
 
 def mettre_a_jour(ticker):
-    chemin = f"data/{ticker.replace('^', '')}.csv"
+    chemin = f"data/{ticker.replace('^', '').replace('=', '')}.csv"
     cible = derniere_seance_cloturee()
 
     if not os.path.exists(chemin):
