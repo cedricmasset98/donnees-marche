@@ -19,11 +19,11 @@ jobs:
       - run: pip install yfinance pandas scipy matplotlib reportlab
       - run: python telecharger.py
       - name: Regenerer le rapport VT (sans requete Yahoo)
-        run: python analyse.py
+        run: python analysis.py
       - name: Enregistrer les donnees
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add data/ rapport/
+          git add data/ report/
           git diff --cached --quiet || git commit -m "Mise a jour des donnees et du rapport"
           git push
