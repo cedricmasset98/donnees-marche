@@ -1,0 +1,8 @@
+period,nav_return,market_price_return,benchmark_return,annualised
+quarter,0.76,0.83,1.19,no
+ytd,12.83,12.86,12.91,no
+1y,16.32,16.45,16.57,yes
+3y,21.42,21.46,21.48,yes
+5y,11.34,11.36,11.39,yes
+10y,12.32,12.32,12.40,yes
+since_inception,8.78,8.78,8.84,yes

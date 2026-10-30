@@ -90,24 +90,48 @@ def drawdown(series):
     return series / series.cummax() - 1
 
 
-def metrics(r, rfq):
-    """r: daily returns; rfq: aligned daily risk-free rate.
+def to_monthly(r):
+    """Compound daily simple returns into calendar-month returns."""
+    return (1 + r).groupby(r.index.to_period("M")).prod() - 1
 
-    The annualised return uses calendar time (from the close preceding the first
-    return to the last close), consistent with cagr(). The Sharpe ratio divides the
-    mean excess return by the volatility of excess returns; Sortino uses the
-    downside deviation of excess returns (target = risk-free rate).
+
+def sharpe_ci(ex_m, level=0.95):
+    """Sharpe ratio of monthly excess returns with the standard error of
+    Mertens (2002) / Opdyke (2007), which allows for skewness and kurtosis.
+    Returns (annualised SR, annualised SE, lower, upper, two-sided p-value of SR = 0)."""
+    T = len(ex_m)
+    sr = ex_m.mean() / ex_m.std()
+    g3 = stats.skew(ex_m)
+    g4 = stats.kurtosis(ex_m, fisher=False)
+    se = np.sqrt((1 + 0.5 * sr ** 2 - g3 * sr + (g4 - 3) / 4 * sr ** 2) / T)
+    z = stats.norm.ppf(0.5 + level / 2)
+    k = np.sqrt(12)
+    return sr * k, se * k, (sr - z * se) * k, (sr + z * se) * k, 2 * stats.norm.sf(abs(sr / se))
+
+
+def metrics(r, rfq):
+    """r: daily simple returns; rfq: aligned daily risk-free rate.
+
+    - annualised return: calendar time, from the close preceding the first return
+      to the last close (same method as cagr());
+    - volatility, Sharpe and Sortino: computed on calendar-month returns and
+      annualised with sqrt(12). Daily returns are negatively autocorrelated, so
+      scaling daily volatility by sqrt(252) would overstate risk (see the variance
+      ratio test); the daily-scaled figure is kept as "vol_d" for comparison;
+    - maximum drawdown: on the daily value path.
     """
-    ex = r - rfq
-    vol = r.std() * np.sqrt(DAYS_PER_YEAR)
-    down_vol = np.sqrt((ex.clip(upper=0) ** 2).mean()) * np.sqrt(DAYS_PER_YEAR)
+    m, rf_mo = to_monthly(r), to_monthly(rfq)
+    ex_m = m - rf_mo
+    vol = m.std() * np.sqrt(12)
+    down = np.sqrt((ex_m.clip(upper=0) ** 2).mean()) * np.sqrt(12)
     value = (1 + r).cumprod()
     start = idx[idx.get_loc(r.index[0]) - 1]
     ca = value.iloc[-1] ** (365.25 / (r.index[-1] - start).days) - 1
     mdd = drawdown(pd.concat([pd.Series([1.0]), value.reset_index(drop=True)])).min()
-    return {"cagr": ca, "vol": vol,
-            "sharpe": ex.mean() / ex.std() * np.sqrt(DAYS_PER_YEAR),
-            "sortino": ex.mean() * DAYS_PER_YEAR / down_vol, "mdd": mdd, "calmar": ca / abs(mdd)}
+    sr, se, lo, hi, p = sharpe_ci(ex_m)
+    return {"cagr": ca, "vol": vol, "vol_d": r.std() * np.sqrt(DAYS_PER_YEAR),
+            "sharpe": sr, "sharpe_se": se, "sharpe_lo": lo, "sharpe_hi": hi, "sharpe_p": p,
+            "sortino": ex_m.mean() * 12 / down, "mdd": mdd, "calmar": ca / abs(mdd)}
 
 
 full = metrics(r_tr, rf)
@@ -320,8 +344,309 @@ ls_mean_gap = (ld["ls"] - ld["dca"]).mean()
 # Swiss franc perspective
 tr_chf = tr * chf
 cagr_usd, cagr_chf, cagr_fx = cagr(tr), cagr(tr_chf), cagr(chf)
-vol_chf = tr_chf.pct_change().std() * np.sqrt(DAYS_PER_YEAR)
+vol_chf = tr_chf.resample("ME").last().pct_change().std() * np.sqrt(12)   # monthly, as for USD
 corr_fx = r_tr.corr(chf.pct_change().reindex(r_tr.index))
+
+# --------------------------------------------------------------------------
+# Additional rigour: sampling frequency, GARCH, VaR backtest, robustness
+# --------------------------------------------------------------------------
+RNG_SEED = 20080626          # fixed seed: bootstrap results are reproducible
+B = 2000                     # bootstrap replications
+
+# Volatility by sampling frequency (non-overlapping returns)
+vol_freq = []
+for name, rule, k in [("Daily", None, DAYS_PER_YEAR), ("Weekly", "W-FRI", 52),
+                      ("Monthly", "ME", 12), ("Quarterly", "QE", 4)]:
+    s = r_tr if rule is None else tr.resample(rule).last().pct_change().dropna()
+    vol_freq.append((name, len(s), s.std() * np.sqrt(k)))
+
+
+# Robust (heteroskedasticity-consistent) test of first-order autocorrelation
+def robust_ac1(x):
+    e = np.asarray(x) - np.mean(x)
+    rho = np.sum(e[1:] * e[:-1]) / np.sum(e ** 2)
+    se = np.sqrt(np.sum(e[1:] ** 2 * e[:-1] ** 2)) / np.sum(e ** 2)
+    z = rho / se
+    return rho, z, 2 * stats.norm.sf(abs(z))
+
+
+series_freq = {"Daily": lr_tr,
+               "Weekly": np.log(tr.resample("W-FRI").last()).diff().dropna(),
+               "Monthly": np.log(tr_m).diff().dropna()}
+ac_rob = {k: robust_ac1(v) for k, v in series_freq.items()}
+
+
+# Holm (1979) step-down adjustment over the family of efficiency tests
+def holm(pvals):
+    p = np.asarray(pvals, float)
+    order = np.argsort(p)
+    adj = np.empty_like(p)
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, (len(p) - rank) * p[i])
+        adj[i] = min(1.0, running)
+    return adj
+
+
+family = ([("ac", k, ac_rob[k][2]) for k in ("Daily", "Weekly", "Monthly")]
+          + [("vr", q, p) for q, vr, z, p in vr_rows]
+          + [("cal", "day", p_day), ("cal", "jan", p_jan), ("cal", "sim", p_sim)])
+holm_adj = dict(zip([(a, b) for a, b, _ in family], holm([p for _, _, p in family])))
+n_family = len(family)
+n_raw_sig = sum(p < 0.05 for _, _, p in family)
+n_holm_sig = sum(v < 0.05 for v in holm_adj.values())
+
+# GARCH(1,1) with Student-t innovations, estimated by maximum likelihood
+from scipy.signal import lfilter
+from scipy.special import gammaln
+
+x_pct = lr_tr.values * 100   # daily log returns in percent
+
+
+def garch_var(params, x):
+    mu, omega, alpha, beta = params[:4]
+    e = x - mu
+    s0 = np.var(x)
+    y = lfilter([0.0, alpha], [1.0, -beta], e ** 2)
+    t = np.arange(len(x))
+    s2 = y + omega * (1 - beta ** t) / (1 - beta) + beta ** t * s0
+    return e, s2
+
+
+def garch_nll(params, x):
+    mu, omega, alpha, beta, nu = params
+    if omega <= 0 or alpha < 0 or beta < 0 or alpha + beta >= 0.9999 or nu <= 2.05:
+        return 1e10
+    e, s2 = garch_var(params, x)
+    ll = (gammaln((nu + 1) / 2) - gammaln(nu / 2) - 0.5 * np.log(np.pi * (nu - 2))
+          - 0.5 * np.log(s2) - (nu + 1) / 2 * np.log1p(e ** 2 / ((nu - 2) * s2)))
+    return -np.sum(ll)
+
+
+def garch_fit(x, start=None):
+    x0 = start if start is not None else [np.mean(x), 0.05 * np.var(x), 0.08, 0.90, 6.0]
+    bounds = [(-1, 1), (1e-6, 5), (1e-4, 0.5), (0.5, 0.9995), (2.1, 100)]
+    res = optimize.minimize(garch_nll, x0, args=(x,), method="L-BFGS-B", bounds=bounds)
+    return res.x, res
+
+
+def num_hessian(f, p, h=1e-4):
+    p = np.asarray(p, float)
+    n = len(p)
+    Hm = np.zeros((n, n))
+    step = h * np.maximum(np.abs(p), 1e-2)
+    for i in range(n):
+        for j in range(i, n):
+            pp = p.copy(); pp[i] += step[i]; pp[j] += step[j]; fpp = f(pp)
+            pm = p.copy(); pm[i] += step[i]; pm[j] -= step[j]; fpm = f(pm)
+            mp = p.copy(); mp[i] -= step[i]; mp[j] += step[j]; fmp = f(mp)
+            mm = p.copy(); mm[i] -= step[i]; mm[j] -= step[j]; fmm = f(mm)
+            Hm[i, j] = Hm[j, i] = (fpp - fpm - fmp + fmm) / (4 * step[i] * step[j])
+    return Hm
+
+
+g_par, g_res = garch_fit(x_pct)
+g_se = np.sqrt(np.diag(np.linalg.inv(num_hessian(lambda p: garch_nll(p, x_pct), g_par))))
+g_mu, g_omega, g_alpha, g_beta, g_nu = g_par
+g_persist = g_alpha + g_beta
+g_half_life = np.log(0.5) / np.log(g_persist)
+g_uncond_vol = np.sqrt(g_omega / (1 - g_persist) * DAYS_PER_YEAR) / 100
+_, g_s2 = garch_var(g_par, x_pct)
+garch_vol = pd.Series(np.sqrt(g_s2 * DAYS_PER_YEAR) / 100, index=lr_tr.index)
+
+# Out-of-sample one-day VaR backtest (log returns)
+WIN = 250
+first_bt = lr_tr.index[2 * WIN]             # about two years of history before the first forecast
+bt_idx = lr_tr.index[lr_tr.index >= first_bt]
+lr = lr_tr.values
+n_all = len(lr)
+pos_bt = np.arange(n_all - len(bt_idx), n_all)
+
+# GARCH: parameters re-estimated each calendar year on an expanding window,
+# conditional variance updated every day with information up to t-1
+g_fore = np.empty(len(pos_bt))
+g_nu_t = np.empty(len(pos_bt))
+g_mu_t = np.empty(len(pos_bt))
+years_bt = bt_idx.year
+prev = None
+for yr in np.unique(years_bt):
+    mask = years_bt == yr
+    first_pos = pos_bt[mask][0]
+    par, _ = garch_fit(x_pct[:first_pos], start=prev)
+    prev = par
+    # variance for day t uses returns up to t-1: run the filter on x[:t] and step once
+    # s2[t] depends only on returns up to t-1: it is the one-step-ahead forecast for day t
+    _, s2 = garch_var(par, x_pct)
+    g_fore[mask] = np.sqrt(s2[pos_bt[mask]])
+    g_nu_t[mask] = par[4]
+    g_mu_t[mask] = par[0]
+
+var_methods = {}
+for lvl in (0.05, 0.01):
+    hist = np.array([np.quantile(lr[p - WIN:p], lvl) for p in pos_bt])
+    norm = np.array([lr[p - WIN:p].mean() + lr[p - WIN:p].std(ddof=1) * stats.norm.ppf(lvl) for p in pos_bt])
+    q_t = stats.t.ppf(lvl, g_nu_t) * np.sqrt((g_nu_t - 2) / g_nu_t)
+    # Zero conditional mean, standard at a one-day horizon. The ML location estimate of a
+    # symmetric Student-t lies well above the sample mean when returns are negatively
+    # skewed, which would push the VaR up; that variant is reported as a sensitivity check.
+    garch_q = g_fore * q_t / 100
+    garch_q_mle = (g_mu_t + g_fore * q_t) / 100
+    var_methods[lvl] = {"Historical (250 days)": hist, "Normal (250 days)": norm, "GARCH(1,1)-t": garch_q}
+    var_methods.setdefault("mle_mean", {})[lvl] = garch_q_mle
+
+
+def kupiec(hits, p):
+    n, x = len(hits), hits.sum()
+    ph = x / n
+    if x == 0:
+        lr_uc = -2 * n * np.log(1 - p)
+    else:
+        lr_uc = -2 * ((n - x) * np.log(1 - p) + x * np.log(p) - (n - x) * np.log(1 - ph) - x * np.log(ph))
+    return lr_uc, stats.chi2.sf(lr_uc, 1)
+
+
+def christoffersen(hits):
+    h = hits.astype(int)
+    a, b = h[:-1], h[1:]
+    n00, n01 = np.sum((a == 0) & (b == 0)), np.sum((a == 0) & (b == 1))
+    n10, n11 = np.sum((a == 1) & (b == 0)), np.sum((a == 1) & (b == 1))
+    p01 = n01 / max(n00 + n01, 1)
+    p11 = n11 / max(n10 + n11, 1)
+    p1 = (n01 + n11) / (n00 + n01 + n10 + n11)
+
+    def ll(p, k0, k1):
+        return (k0 * np.log(1 - p) if k0 else 0) + (k1 * np.log(p) if k1 and p > 0 else 0)
+
+    lr_ind = -2 * (ll(p1, n00 + n10, n01 + n11) - ll(p01, n00, n01) - ll(p11, n10, n11))
+    return lr_ind, stats.chi2.sf(lr_ind, 1)
+
+
+bt_rows = []
+realised = lr[pos_bt]
+mle_breach = {lvl: (realised < var_methods["mle_mean"][lvl]).mean() for lvl in (0.05, 0.01)}
+for lvl in (0.05, 0.01):
+    for name, q in var_methods[lvl].items():
+        hits = realised < q
+        lr_uc, p_uc = kupiec(hits, lvl)
+        lr_ind, p_ind = christoffersen(hits)
+        p_cc = stats.chi2.sf(lr_uc + lr_ind, 2)
+        bt_rows.append((lvl, name, hits.mean(), int(hits.sum()), p_uc, p_ind, p_cc))
+n_bt = len(pos_bt)
+
+# Sensitivity of the moving-average rule and paired block bootstrap
+ma_windows = (50, 100, 150, 200, 250)
+ma_start = px.index[249 + 1]                # first day on which every window is available
+r_common = r_tr.loc[ma_start:]
+rf_common = rf.loc[r_common.index]
+
+
+def ma_returns(w):
+    ma = px.rolling(w).mean()
+    s = (px > ma).astype(float).shift(1).reindex(r_common.index)
+    sw = s.diff().abs().fillna(0)
+    return s * r_common + (1 - s) * rf_common - sw * TRANSACTION_COST, int(sw.sum()), s.mean()
+
+
+ma_sens = []
+for w in ma_windows:
+    rr, nsw, inv = ma_returns(w)
+    ma_sens.append((w, metrics(rr, rf_common), nsw, inv))
+bh_common = metrics(r_common, rf_common)
+
+
+def block_bootstrap_idx(n, block, reps, rng):
+    """Circular block bootstrap indices (reps x n)."""
+    starts = rng.integers(0, n, size=(reps, int(np.ceil(n / block))))
+    idxs = (starts[:, :, None] + np.arange(block)[None, None, :]) % n
+    return idxs.reshape(reps, -1)[:, :n]
+
+
+rng = np.random.default_rng(RNG_SEED)
+rr200, _, _ = ma_returns(200)
+a_bh, a_ma = r_common.values, rr200.values
+ii = block_bootstrap_idx(len(a_bh), 63, B, rng)
+yrs_common = len(a_bh) / DAYS_PER_YEAR
+g_bh = np.exp(np.log1p(a_bh[ii]).sum(axis=1) / yrs_common) - 1
+g_ma = np.exp(np.log1p(a_ma[ii]).sum(axis=1) / yrs_common) - 1
+diff_obs = (np.exp(np.log1p(a_bh).sum() / yrs_common) - 1) - (np.exp(np.log1p(a_ma).sum() / yrs_common) - 1)
+diff_bs = g_bh - g_ma
+diff_lo, diff_hi = np.percentile(diff_bs, [2.5, 97.5])
+diff_p = (np.abs(diff_bs - diff_obs) >= abs(diff_obs)).mean()   # centred bootstrap, H0: no difference
+
+# Probability of loss: stationary bootstrap of monthly log returns
+lm = np.log(tr_m).diff().dropna().values
+
+
+def stationary_bootstrap_sums(x, horizon, reps, mean_block, rng):
+    n = len(x)
+    p = 1 / mean_block
+    pos = rng.integers(0, n, size=reps)
+    total = x[pos].copy()
+    for _ in range(1, horizon):
+        jump = rng.random(reps) < p
+        pos = np.where(jump, rng.integers(0, n, size=reps), (pos + 1) % n)
+        total += x[pos]
+    return total
+
+
+rng = np.random.default_rng(RNG_SEED)
+boot_ploss = {}
+for h, name in [(12, "1 year"), (60, "5 years"), (120, "10 years")]:
+    sims = stationary_bootstrap_sums(lm, h, 20000, 12, rng)
+    boot_ploss[name] = (sims < 0).mean()
+
+# Sensitivity to the starting date (to the last close)
+start_sens = pd.Series({d: (tr.iloc[-1] / v) ** (365.25 / (idx[-1] - d).days) - 1
+                        for d, v in tr_m.items() if (idx[-1] - d).days >= 5 * 365})
+start_sens_annual = {y: start_sens[start_sens.index.year == y].iloc[-1]
+                     for y in range(idx[0].year, idx[-1].year - 4)}
+
+# Weekly correlation with USD/CHF (avoids the time-of-day mismatch of daily closes)
+w_vt = tr.resample("W-FRI").last().pct_change()
+w_fx = chf.resample("W-FRI").last().pct_change()
+corr_fx_w = w_vt.corr(w_fx)
+
+# Validation against Vanguard's published market-price returns
+ref = pd.read_csv("data/reference/vanguard_vt_trailing_2026-09-30.csv")
+REF_DATE = pd.Timestamp("2026-09-30")
+INCEPTION = pd.Timestamp("2008-06-24")
+
+
+def tr_at(d):
+    return tr.loc[:d].iloc[-1]
+
+
+val_rows = []
+if idx[-1] >= REF_DATE:
+    end_v = tr_at(REF_DATE)
+    calc = {"quarter": end_v / tr_at("2026-06-30") - 1, "ytd": end_v / tr_at("2025-12-31") - 1}
+    for y in (1, 3, 5, 10):
+        calc[f"{y}y"] = (end_v / tr_at(REF_DATE - pd.DateOffset(years=y))) ** (1 / y) - 1
+    calc["since_inception"] = (end_v / tr.iloc[0]) ** (365.25 / (REF_DATE - idx[0]).days) - 1
+    labels = {"quarter": "Third quarter 2026", "ytd": "Year to date", "1y": "1 year", "3y": "3 years",
+              "5y": "5 years", "10y": "10 years", "since_inception": "Since inception"}
+    for _, rw in ref.iterrows():
+        val_rows.append((labels[rw["period"]], rw["market_price_return"] / 100, calc[rw["period"]],
+                         rw["nav_return"] / 100, rw["annualised"] == "yes"))
+val_max_gap = max(abs(a - b) for _, a, b, _, _ in val_rows[:-1]) if val_rows else None
+
+# The headline moving-average comparison uses the same common period as the
+# sensitivity analysis and the bootstrap, so that all MA figures are comparable
+sig = (px > px.rolling(200).mean()).astype(float).shift(1).reindex(r_common.index)
+r_bh, r_ma = r_common, rr200
+m_bh, m_ma = bh_common, metrics(rr200, rf_common)
+n_switch = int(sig.diff().abs().fillna(0).sum())
+share_invested = sig.mean()
+val_bh = (1 + r_bh).cumprod()
+val_ma = (1 + r_ma).cumprod()
+
+# Reproducibility: data fingerprint and library versions
+import hashlib
+import platform
+import scipy as _scipy
+data_sha = hashlib.sha256(open("data/VT.csv", "rb").read()).hexdigest()[:16]
+versions = (f"Python {platform.python_version()}, pandas {pd.__version__}, NumPy {np.__version__}, "
+            f"SciPy {_scipy.__version__}, Matplotlib {matplotlib.__version__}")
 
 # --------------------------------------------------------------------------
 # Charts (vector PDF, serif font matching the Times text of the report)
@@ -379,15 +704,44 @@ def c_annual():
 
 
 def c_vol():
-    fig, ax = plt.subplots(figsize=(W, 2.3))
-    ax.plot(roll_vol.index, roll_vol, color=BLUE, lw=1.0)
+    fig, ax = plt.subplots(figsize=(W, 2.4))
+    ax.plot(garch_vol.index, garch_vol, color=ORANGE, lw=0.7, alpha=0.9, label="GARCH(1,1)-t conditional volatility")
+    ax.plot(roll_vol.index, roll_vol, color=BLUE, lw=1.1, label="One-year rolling volatility")
     ax.axhline(full["vol"], color=GREY, lw=0.8, ls="--")
-    ax.text(roll_vol.index[-1], full["vol"] + 0.012, f"full-period average: {pct(full['vol'])}",
+    ax.text(roll_vol.index[-1], full["vol"] + 0.015, f"full period, monthly returns: {pct(full['vol'])}",
             color=GREY, fontsize=8, ha="right")
     ax.yaxis.set_major_formatter(fmt_pct)
+    ax.set_ylim(0, min(1.0, garch_vol.max() * 1.05))
     ax.set_ylabel("Annualised volatility")
     year_axis(ax)
+    ax.legend(loc="upper right", fontsize=7.5)
     save(fig, "volatility")
+
+
+def c_var_bt():
+    fig, ax = plt.subplots(figsize=(W, 2.4))
+    q = var_methods[0.01]["GARCH(1,1)-t"]
+    ax.plot(bt_idx, realised * 100, color="#9a9992", lw=0.4, label="Daily log return")
+    ax.plot(bt_idx, q * 100, color=BLUE, lw=0.9, label="1% VaR, GARCH(1,1)-t")
+    hits = realised < q
+    ax.scatter(bt_idx[hits], realised[hits] * 100, s=7, color=RED, zorder=3, label=f"Breaches ({hits.sum()})")
+    ax.set_ylabel("Daily return (%)")
+    year_axis(ax)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncols=3, fontsize=7.5)
+    save(fig, "var_backtest")
+
+
+def c_start():
+    fig, ax = plt.subplots(figsize=(W, 2.2))
+    ax.plot(start_sens.index, start_sens, color=BLUE, lw=1.1)
+    ax.axhline(full["cagr"], color=GREY, lw=0.8, ls="--")
+    ax.text(start_sens.index[-1], full["cagr"] - 0.012, f"since inception: {pct(full['cagr'])}",
+            color=GREY, fontsize=8, ha="right")
+    ax.yaxis.set_major_formatter(fmt_pct)
+    ax.set_ylabel("Annualised return to date")
+    ax.set_xlabel("Start of investment (month end)")
+    year_axis(ax)
+    save(fig, "start_date")
 
 
 def c_dd():
@@ -529,7 +883,7 @@ def c_chf():
 
 
 for chart in (c_price, c_annual, c_vol, c_dd, c_distribution, c_acf, c_calendar, c_ma200,
-              c_rolling, c_best, c_plan, c_chf):
+              c_rolling, c_best, c_plan, c_chf, c_var_bt, c_start):
     chart()
 
 # --------------------------------------------------------------------------
@@ -554,50 +908,85 @@ def tpv(p):
     return "$<$ 0.001" if p < 0.001 else num(p, 3)
 
 
+def ci(m):
+    return f"[{tn(m['sharpe_lo'])}, {tn(m['sharpe_hi'])}]"
+
+
 AUTHOR = "Cédric Masset"
 v = {"author": AUTHOR, "generated": date.today().strftime("%d %B %Y"),
      "first_date": dt(idx[0]), "last_date": dt(idx[-1]), "n_days": f"{len(vt):,}"}
 
-# Summary
+# ---------------------------------------------------------------- Summary
 v.update({
     "px0": num(px.iloc[0]), "px1": num(px.iloc[-1]),
     "cum_px": tp(px.iloc[-1] / px.iloc[0] - 1, 0), "cum_tr": tp(tr.iloc[-1] / tr.iloc[0] - 1, 0),
     "cagr_px": tp(cagr(px)), "cagr_tr": tp(full["cagr"]), "cagr_chf": tp(cagr_chf),
-    "vol": tp(full["vol"]), "rf_mean": tp(rf_mean), "sharpe": tn(full["sharpe"]),
-    "sortino": tn(full["sortino"]), "mdd": tp(full["mdd"]), "mdd_date": dt(top_dd[0][1]),
-    "calmar": tn(full["calmar"]), "ploss": " / ".join(tp(r[2], 0) for r in roll_rows),
+    "vol": tp(full["vol"]), "vol_d": tp(full["vol_d"]), "rf_mean": tp(rf_mean),
+    "sharpe": tn(full["sharpe"]), "sharpe_ci": ci(full), "sortino": tn(full["sortino"]),
+    "mdd": tp(full["mdd"]), "mdd_date": dt(top_dd[0][1]), "calmar": tn(full["calmar"]),
+    "ploss_emp": " / ".join(tp(r[2], 0) for r in roll_rows),
+    "ploss_boot": " / ".join(tp(boot_ploss[k], 0) for k in ("1 year", "5 years", "10 years")),
 })
 v["takeaways"] = [
-    f"Over {num(years, 1)} years, VT returned {tp(full['cagr'])} a year with dividends reinvested, of which "
-    f"roughly {tp(full['cagr'] - cagr(px))} a year came from dividends.",
-    f"The price of that return was {tp(full['vol'], 0)} annual volatility and a maximum drawdown of "
-    f"{tp(abs(full['mdd']), 0)} during the global financial crisis.",
-    f"Daily returns are clearly non-normal (kurtosis of {tn(kurt, 1)}) and volatility clusters over time; their "
-    "direction is only weakly predictable from one day to the next, and not at all over longer horizons.",
-    f"For a Swiss franc investor, the weaker dollar cut the annualised return by {tp(full['cagr'] - cagr_chf)} a "
-    f"year ({tp(cagr_chf)} in CHF).",
+    f"Over {num(years, 1)} years, VT returned {tp(full['cagr'])} a year with dividends reinvested, of which roughly "
+    f"{tp(full['cagr'] - cagr(px))} a year came from dividends. "
+    + (f"These figures match Vanguard's published market-price returns to within {num(val_max_gap * 100, 2)} "
+       "percentage point." if val_rows else ""),
+    f"Measured on monthly returns, annualised volatility is {tp(full['vol'])}; scaling daily volatility by "
+    f"$\\sqrt{{252}}$ gives {tp(full['vol_d'])} because daily returns are negatively autocorrelated. The maximum "
+    f"drawdown was {tp(full['mdd'], 0)} during the global financial crisis.",
+    f"The Sharpe ratio of {tn(full['sharpe'])} has a 95\\% confidence interval of {ci(full)}: eighteen years of "
+    "data are barely enough to distinguish it from zero.",
+    f"Daily returns have fat tails (kurtosis {tn(kurt, 1)}) and strongly persistent volatility (GARCH persistence "
+    f"{num(g_persist, 3)}, half-life of about {num(g_half_life, 0)} trading days). A GARCH(1,1)-$t$ model forecasts "
+    "the 5\\% Value at Risk well out of sample; rolling historical and normal VaR do not, because their breaches "
+    "cluster.",
+    f"After correcting for multiple testing, the only departure from a random walk is a small negative "
+    f"autocorrelation of daily returns ({tn(ac_freq[0][2], 3)}); it vanishes at weekly and monthly frequencies. "
+    "No calendar effect is significant, and a 200-day moving-average rule underperformed buy and hold.",
+    f"For a Swiss franc investor, the weaker dollar cut the annualised return by {tp(full['cagr'] - cagr_chf)} "
+    f"({tp(cagr_chf)} in CHF), before taxes.",
 ]
 
-# 1. Return and risk
+# ---------------------------------------------------------------- 1. Return and risk
 best_y, worst_y = y_full.idxmax(), y_full.idxmin()
 v["annual_note"] = (
     f"* Partial years: {partial_first} (from inception)"
     + (f" and {partial_last} (up to {dt(idx[-1])})." if partial_last else ".")
     + f" Of the {len(y_full)} full years, the best was {best_y} ({tp(y_full[best_y], 1, True)}) and the worst "
       f"{worst_y} ({tp(y_full[worst_y], 1, True)}); {int((y_full < 0).sum())} years were negative.")
+v["vol_freq_rows"] = [[name, f"{n:,}", tp(vol)] for name, n, vol in vol_freq]
 v["vol_text"] = (
-    f"Volatility varies sharply across regimes: from {tp(roll_vol.min(), 0)} at its calmest (year ending "
-    f"{dt(roll_vol.idxmin())}) to {tp(roll_vol.max(), 0)} at its most turbulent (year ending "
-    f"{dt(roll_vol.idxmax())}). A single full-period average therefore hides very different environments.")
+    f"Volatility varies sharply across regimes: the one-year rolling estimate ranges from {tp(roll_vol.min(), 0)} "
+    f"(year ending {dt(roll_vol.idxmin())}) to {tp(roll_vol.max(), 0)} (year ending {dt(roll_vol.idxmax())}), and "
+    f"the GARCH conditional volatility peaks at {tp(garch_vol.max(), 0)} on {dt(garch_vol.idxmax())}.\n\n"
+    "The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by "
+    "$\\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated "
+    f"(Section~3), so daily data annualised with $\\sqrt{{252}}$ give {tp(vol_freq[0][2])}, whereas monthly data "
+    f"give {tp(vol_freq[2][2])}. The ratio of the two variances, "
+    f"{num((vol_freq[2][2] / vol_freq[0][2]) ** 2, 2)}, is of the same order as the variance ratio estimated "
+    f"in Section~3 at a 20-day horizon ({num(vr_rows[-1][1], 2)}), given the sampling error of only "
+    f"{vol_freq[2][1]} monthly observations. This report therefore uses monthly returns for annualised volatility and for the Sharpe and Sortino "
+    "ratios.")
 pos = {d: i for i, d in enumerate(idx)}
-v["dd_rows"] = [[dt(s), dt(t), dt(e) if e is not None else "--", tp(d),
-                 str(pos[t] - pos[s]), str(pos[e] - pos[t]) if e is not None else "not yet"]
-                for s, t, e, d in top_dd]
+v["dd_rows"] = [[dt(s_), dt(t), dt(e) if e is not None else "--", tp(d),
+                 str(pos[t] - pos[s_]), str(pos[e] - pos[t]) if e is not None else "not yet"]
+                for s_, t, e, d in top_dd]
 v["sub_rows"] = [[f"{d0.year}--{d1.year}" if d0 is not None else "Full period", tp(m["cagr"]), tp(m["vol"]),
-                  tn(m["sharpe"]), tn(m["sortino"]), tp(m["mdd"]), tn(m["calmar"])]
+                  tn(m["sharpe"]), ci(m), tn(m["sortino"]), tp(m["mdd"])]
                  for d0, d1, m in sub + [(None, None, full)]]
+n_zero = sum(m["sharpe_lo"] < 0 < m["sharpe_hi"] for _, _, m in sub)
+n_cover_full = sum(m["sharpe_lo"] < full["sharpe"] < m["sharpe_hi"] for _, _, m in sub)
+words = {0: "none", 1: "one", 2: "two", 3: "three", 4: "all four"}
+v["sub_text"] = (
+    "The confidence intervals are wide: with about five years of monthly data per sub-period, "
+    + ("all four sub-period intervals contain" if n_cover_full == len(sub) else
+       f"{words[n_cover_full]} of the four sub-period intervals contain")
+    + " the full-period Sharpe ratio, and "
+    + f"{words[n_zero]} contain zero. Differences between sub-periods should be read as descriptive rather than as "
+    + "evidence of a change in the fund's risk-return profile.")
 
-# 2. Distribution
+# ---------------------------------------------------------------- 2. Distribution, GARCH, VaR
 v.update({
     "mu": tp(mu, 3), "sd": tp(sd, 2), "skew": tn(skew), "kurt": tn(kurt),
     "jb": f"{num(jb_stat, 0)} ($p$ {tpv(jb_p)})", "beyond4": str(beyond4), "expected4": num(expected4, 2),
@@ -607,64 +996,125 @@ v["dist_text"] = (
     f"The tails are far fatter than those of a normal distribution: {beyond4} days moved by more than four "
     f"standard deviations, whereas a normal distribution would predict {num(expected4, 1)} over the period. The "
     f"{'negative' if skew < 0 else 'positive'} skewness means that large declines are "
-    f"{'more' if skew < 0 else 'less'} pronounced than large gains.")
-v["var_rows"] = [[tp(l, 0), tp(q, 2), tp(es, 2), tp(qn, 2), tp(esn, 2), f"{tp(br, 2)} (expected {tp(1 - l, 0)})"]
-                 for l, q, es, qn, esn, br in var_rows]
-v["var_text"] = (
-    "At 99\\%, the parametric normal VaR understates risk: it is breached more often than expected, and the "
-    "historical Expected Shortfall is markedly higher. This is the direct consequence of the fat tails documented "
-    "above." if var_rows[1][5] > 0.01 else "The normal VaR remains close to the historical VaR over this period.")
+    f"{'more' if skew < 0 else 'less'} pronounced than large gains. Part of this excess kurtosis reflects "
+    "time-varying volatility: returns are closer to normal once scaled by their conditional volatility, as the "
+    "GARCH estimates below show.")
 v["acf_text"] = (
-    f"Apart from a small effect at the first lag (see Section~3), returns show little autocorrelation (Ljung--Box "
-    f"with 10 lags: $Q = {num(lb_r[0], 1)}$). Squared returns, by contrast, are strongly and persistently "
-    f"autocorrelated ($Q = {num(lb_r2[0], 0)}$, $p < 0.001$). A large move tends to be followed by further large "
-    "moves of either sign, the behaviour captured by ARCH and GARCH models.")
+    f"Returns show little autocorrelation beyond the first lag (Ljung--Box with 10 lags: $Q = {num(lb_r[0], 1)}$). "
+    f"Squared returns, by contrast, are strongly and persistently autocorrelated ($Q = {num(lb_r2[0], 0)}$, "
+    "$p < 0.001$): a large move tends to be followed by further large moves of either sign.")
+names = ["$\\mu$ (\\% per day)", "$\\omega$", "$\\alpha$", "$\\beta$", "$\\nu$ (degrees of freedom)"]
+v["garch_rows"] = [[n_, num(p_, 4), num(se_, 4)] for n_, p_, se_ in zip(names, g_par, g_se)]
+v["garch_text"] = (
+    f"The model $\\sigma_t^2 = \\omega + \\alpha\\,\\varepsilon_{{t-1}}^2 + \\beta\\,\\sigma_{{t-1}}^2$ with "
+    f"standardised Student-$t$ innovations is estimated by maximum likelihood on daily log returns in percent "
+    f"\\citep{{bollerslev1986}}. Persistence $\\alpha + \\beta = {num(g_persist, 3)}$ implies that a volatility shock "
+    f"loses half its effect after about {num(g_half_life, 0)} trading days. The estimated $\\nu = {num(g_nu, 1)}$ "
+    "confirms that, even after accounting for volatility clustering, daily shocks have fatter tails than the normal "
+    f"distribution. The implied long-run volatility, {tp(g_uncond_vol)}, uses daily scaling and is therefore "
+    "comparable with the daily-scaled figure in Section~1.")
+v["n_bt"] = f"{n_bt:,}"
+v["n_family"] = n_family
+v["bt_start"] = dt(bt_idx[0])
+v["bt_rows"] = [[tp(l, 0), name, tp(rate, 2), f"{k} / {num(l * n_bt, 0)}", tpv(puc), tpv(pind), tpv(pcc)]
+                for l, name, rate, k, puc, pind, pcc in bt_rows]
+bt = {(l, n_): (rate, puc, pind, pcc) for l, n_, rate, k, puc, pind, pcc in bt_rows}
+g5, g1 = bt[(0.05, "GARCH(1,1)-t")], bt[(0.01, "GARCH(1,1)-t")]
+v["bt_text"] = (
+    "Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\\% are close "
+    "to the target, but the breaches cluster in turbulent periods, so the independence test of "
+    "\\citet{christoffersen1998} rejects them decisively. At 1\\%, both also fail the unconditional coverage test "
+    f"of \\citet{{kupiec1995}}: {tp(bt[(0.01, 'Historical (250 days)')][0], 2)} and "
+    f"{tp(bt[(0.01, 'Normal (250 days)')][0], 2)} of breaches instead of 1\\%. "
+    f"The GARCH(1,1)-$t$ forecasts pass both tests at 5\\% (breach rate {tp(g5[0], 2)}; $p$-values "
+    f"{tpv(g5[1])} and {tpv(g5[2])}). At 1\\%, their breach rate of {tp(g1[0], 2)} is acceptable "
+    f"($p = {tpv(g1[1])}$), but extreme losses still arrive in clusters ($p = {tpv(g1[2])}$ for independence). A "
+    "symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an "
+    "extreme-value model would be the natural next step.")
+v["bt_note"] = (
+    f"One-day VaR on daily log returns, forecasts from {dt(bt_idx[0])} to {dt(bt_idx[-1])} ({n_bt:,} days), each "
+    "using only information available the day before. Historical and normal VaR use a 250-day rolling window. "
+    "GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional "
+    "variance is updated daily. The GARCH forecasts use a zero conditional mean, standard at a one-day horizon; with "
+    f"the maximum-likelihood location estimate instead ({num(g_mu, 3)}\\% a day, well above the sample mean of "
+    f"{num(lr_tr.mean() * 100, 3)}\\% because of negative skewness), the breach rates rise to "
+    f"{tp(mle_breach[0.05], 2)} and {tp(mle_breach[0.01], 2)}. Kupiec: unconditional coverage; Christoffersen: "
+    "independence; CC: conditional coverage (joint).")
 
-# 3. Efficiency
-v["ac_rows"] = [[name, f"{n:,}", tn(r1, 3), tn(t, 2), tpv(p)] for name, n, r1, t, p in ac_freq]
+# ---------------------------------------------------------------- 3. Efficiency
+v["ac_rows"] = [[name, f"{n:,}", tn(r1, 3), tn(t, 2), tn(ac_rob[name][1], 2), tpv(ac_rob[name][2]),
+                 tpv(holm_adj[("ac", name)])] for name, n, r1, t, p in ac_freq]
 v["ac_text"] = (
-    f"Daily autocorrelation is negative ({tn(ac_freq[0][2], 3)}): a gain tends to be slightly reversed the "
-    f"following day. The effect is concentrated in crises: excluding 2008--2009 and February to June 2020, it "
-    f"falls to {tn(ac1_non_crisis, 3)}, still negative but less than half as large. Possible explanations include "
-    "overreaction on turbulent days, or temporary gaps between the ETF price and the value of its foreign "
-    "holdings, which trade at different hours. At weekly and monthly frequencies, no significant "
-    "autocorrelation appears.")
-v["vr_rows"] = [[str(q), num(vr, 3), tn(z, 2), tpv(p),
-                 "not rejected" if p >= 0.05 else ("mean reversion" if vr < 1 else "persistence")]
+    f"Daily autocorrelation is negative ({tn(ac_freq[0][2], 3)}): a gain tends to be slightly reversed the following "
+    "day. The naive $t$-statistic overstates its significance; the heteroskedasticity-robust statistic is "
+    f"{tn(ac_rob['Daily'][1], 2)}, still significant after the Holm correction. The effect is concentrated in crises: "
+    f"excluding 2008--2009 and February to June 2020, the autocorrelation falls to {tn(ac1_non_crisis, 3)}. "
+    "Plausible explanations, which these data cannot separate, are overreaction on turbulent days and temporary "
+    "gaps between the ETF's closing price and the value of its foreign holdings, which trade at different hours. "
+    "Testing the second would require daily net asset values. At weekly and monthly frequencies, no autocorrelation "
+    "is detectable.")
+v["vr_rows"] = [[str(q), num(vr, 3), tn(z, 2), tpv(p), tpv(holm_adj[("vr", q)]),
+                 "not rejected" if holm_adj[("vr", q)] >= 0.05 else ("mean reversion" if vr < 1 else "persistence")]
                 for q, vr, z, p in vr_rows]
-rejected = [q for q, vr, z, p in vr_rows if p < 0.05]
-v["vr_text"] = (("The random-walk hypothesis is not rejected at any horizon. " if not rejected else
-                 f"The random-walk hypothesis is rejected at the 5\\% level for $q = {', '.join(map(str, rejected))}$. ")
-                + "Even where a deviation is statistically significant, it is small in magnitude and would need to "
-                  "survive transaction costs to be exploitable.")
+v["mt_text"] = (
+    f"Section~3 reports {n_family} hypothesis tests. At the 5\\% level, about one false rejection is expected by "
+    "chance alone, so each $p$-value is also adjusted with the step-down procedure of \\citet{holm1979}, which "
+    f"controls the probability of any false rejection. {n_raw_sig} tests are significant before adjustment and "
+    f"{n_holm_sig} after. Both remaining rejections concern the same first-order daily autocorrelation, since "
+    "$VR(2) \\approx 1 + \\hat\\rho_1$.")
 v.update({
-    "cal_day": f"$F = {num(f_day, 2)}$", "p_day": tpv(p_day),
+    "cal_day": f"$F = {num(f_day, 2)}$", "p_day": tpv(p_day), "h_day": tpv(holm_adj[("cal", "day")]),
     "cal_jan": f"{tp(jan.mean(), 2)} vs {tp(other.mean(), 2)} per month", "p_jan": tpv(p_jan),
+    "h_jan": tpv(holm_adj[("cal", "jan")]),
     "n_halves": f"{len(winter)} and {len(summer)} half-years",
-    "cal_sim": f"{tp(winter.mean(), 1)} vs {tp(summer.mean(), 1)} per half-year", "p_sim": tpv(p_sim),
-    "cal_note": "With fewer than twenty observations per calendar month, differences between months are dominated "
-                "by statistical noise."
-                + (" None of the three effects is significant at the 5\\% level." if min(p_day, p_jan, p_sim) >= 0.05 else ""),
+    "cal_sim": f"{tp(winter.mean(), 1)} vs {tp(summer.mean(), 1)}", "p_sim": tpv(p_sim),
+    "h_sim": tpv(holm_adj[("cal", "sim")]),
+    "cal_note": "With fewer than twenty observations per calendar month, these tests have little power: the "
+                "absence of significance does not prove the absence of an effect, only that any effect is too "
+                "small to detect in eighteen years of data.",
 })
+v["ma_start"] = dt(r_common.index[0])
 v["ma"] = [[tp(m_bh["cagr"]), tp(m_ma["cagr"])], [tp(m_bh["vol"]), tp(m_ma["vol"])],
-           [tn(m_bh["sharpe"]), tn(m_ma["sharpe"])], [tp(m_bh["mdd"]), tp(m_ma["mdd"])],
+           [f"{tn(m_bh['sharpe'])} {ci(m_bh)}", f"{tn(m_ma['sharpe'])} {ci(m_ma)}"],
+           [tp(m_bh["mdd"]), tp(m_ma["mdd"])],
            [f"USD {num(val_bh.iloc[-1] * cap, 0)}", f"USD {num(val_ma.iloc[-1] * cap, 0)}"]]
+v["ma_sens_rows"] = ([[f"{w} days", tp(m["cagr"]), tp(m["vol"]), tn(m["sharpe"]), tp(m["mdd"]), str(nsw),
+                       tp(inv, 0)] for w, m, nsw, inv in ma_sens]
+                     + [["Buy and hold", tp(bh_common["cagr"]), tp(bh_common["vol"]), tn(bh_common["sharpe"]),
+                         tp(bh_common["mdd"]), "0", "100\\%"]])
 v["ma_note"] = (
-    f"Rule: invested in VT when the previous day's close is above its 200-day moving average, otherwise held in "
-    f"T-bills; switches are executed at that same close. Cost of {tp(TRANSACTION_COST, 2)} per switch, {n_switch} "
-    f"switches in total; the strategy was invested {tp(share_invested, 0)} of the time. Common period starting "
-    f"{dt(sig.index[0])}, since the moving average needs 200 days of history.")
+    "Rule: invested in VT when the previous day's close is above its moving average, otherwise held in T-bills; "
+    f"switches are executed at that same close and cost {tp(TRANSACTION_COST, 2)} each. All windows are compared "
+    f"over the same period, starting {dt(r_common.index[0])}, the first day on which a 250-day average is "
+    "available.")
+all_under = all(m["cagr"] < bh_common["cagr"] for _, m, _, _ in ma_sens)
 v["ma_text"] = (
-    f"The strategy {'reduces' if m_ma['mdd'] > m_bh['mdd'] else 'does not reduce'} the maximum drawdown "
-    f"({tp(m_ma['mdd'], 0)} vs {tp(m_bh['mdd'], 0)}), "
-    + (f"but at the cost of {tp(m_bh['cagr'] - m_ma['cagr'])} a year in return. " if m_ma["cagr"] < m_bh["cagr"]
-       else f"and adds {tp(m_ma['cagr'] - m_bh['cagr'])} a year in return. ")
-    + "It often exits after a fall and re-enters after the rebound: late and repeated signals (``whipsaws'') are "
-      "costly in a market that recovers quickly.")
+    f"{'Every window underperformed' if all_under else 'Most windows underperformed'} buy and hold, by {tp(bh_common['cagr'] - max(m['cagr'] for _, m, _, _ in ma_sens))} "
+    f"to {tp(bh_common['cagr'] - min(m['cagr'] for _, m, _, _ in ma_sens))} a year, while reducing the maximum "
+    f"drawdown. For the 200-day rule, a circular block bootstrap ({B:,} replications, 63-day blocks) gives a 95\\% "
+    f"confidence interval of [{tp(diff_lo)}, {tp(diff_hi)}] for the annual return gap ($p = {tpv(diff_p)}$): the "
+    "underperformance is borderline significant. The sample starts in mid-2009, after the financial-crisis crash "
+    "that such rules are designed to avoid, which works against them; a longer index history would be needed for "
+    "a fair assessment. Late and repeated signals (``whipsaws'') are costly in a market that recovers quickly.")
 
-# 4. Investor
-v["roll_rows"] = [[name, str(n), tp(pl, 0), f"{tp(mn)} ({mon(dmn)})", tp(med), tp(mx)]
+# ---------------------------------------------------------------- 4. Investor
+v["roll_rows"] = [[name, str(n), tp(pl, 0), tp(boot_ploss[name], 0), f"{tp(mn)} ({mon(dmn)})", tp(med), tp(mx)]
                   for name, n, pl, mn, dmn, med, mx in roll_rows]
+v["roll_text"] = (
+    "Overlapping windows understate the probability of loss at long horizons: the 10-year windows contain only "
+    "about one and a half independent periods, none of which happened to lose money. A stationary bootstrap "
+    f"\\citep{{politis1994}} that resamples blocks of monthly returns (mean length 12 months, 20,000 paths) "
+    f"gives a more defensible estimate: {tp(boot_ploss['5 years'], 0)} over five years and "
+    f"{tp(boot_ploss['10 years'], 0)} over ten. The bootstrap still assumes that the next decades resemble the "
+    "past eighteen years.")
+lo_y = min(start_sens_annual, key=start_sens_annual.get)
+hi_y = max(start_sens_annual, key=start_sens_annual.get)
+v["start_text"] = (
+    f"Because VT was launched just before the 2008 crash, ``since inception'' figures are among the least "
+    f"favourable available. Starting at any year end between {min(start_sens_annual)} and "
+    f"{max(start_sens_annual)} would have delivered between {tp(start_sens_annual[lo_y])} ({lo_y}) and "
+    f"{tp(start_sens_annual[hi_y])} ({hi_y}) a year to date, against {tp(full['cagr'])} since inception. "
+    "Performance statistics should always be read together with their start and end dates.")
 v["best_text"] = (
     f"Missing the 10 best days out of {len(r_tr):,} cuts the annualised return from {tp(best_rows[0][2])} to "
     f"{tp(best_rows[1][2])}. The reverse exercise is just as striking: avoiding the 10 worst days would have lifted "
@@ -675,32 +1125,51 @@ v["contribution"] = str(contribution)
 v["plan_text"] = (
     f"Investing USD {contribution} at the end of every month since inception ({len(plan_prices)} contributions, "
     f"USD {num(plan_invested, 0)} in total) would be worth USD {num(plan_value, 0)} today, an internal rate of "
-    f"return of {tp(plan_irr)} a year.\n\n"
+    f"return of {tp(plan_irr)} a year, above the {tp(full['cagr'])} of a single investment at inception because "
+    "most of the money was invested after the 2008--2009 crash.\n\n"
     f"Across the {len(ld)} possible monthly starting points, investing a sum all at once beat spreading it over "
     f"12 months (with the uninvested cash earning the T-bill rate) in {tp(ls_win_share, 0)} of cases, with an "
     f"average advantage of {tp(ls_mean_gap, 1)} after 12 months. Because the market rises most of the time, "
-    "waiting costs money on average; averaging in mainly limits the regret of investing just before a decline.")
+    "waiting costs money on average; averaging in mainly limits the regret of investing just before a decline. The "
+    "starting points overlap, so this frequency is descriptive rather than a precise probability.")
 
-# 5. CHF
+# ---------------------------------------------------------------- 5. CHF
 v.update({"cagr_usd": tp(cagr_usd), "vol_chf": tp(vol_chf),
-          "fx_move": f"{num(chf.iloc[0], 4)} $\\rightarrow$ {num(chf.iloc[-1], 4)} ({tp(cagr_fx, 1, True)} a year)"})
+          "fx_move": f"{num(chf.iloc[0], 4)} $\\rightarrow$ {num(chf.iloc[-1], 4)} ({tp(cagr_fx, 1, True)} a year)",
+          "corr_w": tn(corr_fx_w, 2), "corr_d": tn(corr_fx, 2)})
 v["chf_text"] = (
     f"The dollar depreciated against the franc, costing an unhedged Swiss investor about {tp(cagr_usd - cagr_chf)} "
-    f"of return a year. The daily correlation between VT and USD/CHF is {tn(corr_fx, 2)}: "
-    + ("the franc tends to strengthen when equities fall, which deepens losses in CHF during crises. "
-       if corr_fx > 0 else
-       "the dollar tends to strengthen slightly when equities fall, which cushions losses in CHF a little, but the "
-       "relationship is weak. ")
-    + "Because VT is a global fund, its true exposure is to a basket of currencies: USD/CHF captures only part of "
-      "the currency effect.")
+    f"of return a year. The weekly correlation between VT and USD/CHF is {tn(corr_fx_w, 2)}; the daily correlation, "
+    f"{tn(corr_fx, 2)}, is biased towards zero because Yahoo's daily currency and ETF closes are taken at different "
+    "times of day. "
+    + ("The dollar tends to strengthen against the franc when equities fall, which cushions part of the losses in "
+       "CHF. " if corr_fx_w < 0 else "The franc tends to strengthen when equities fall, which deepens losses in CHF. ")
+    + "Because VT is a global fund, its true exposure is to a basket of currencies: USD/CHF captures only part of the "
+      "currency effect. All figures are before Swiss income tax and the 15\\% US withholding tax on dividends, which "
+      "a Swiss resident can usually credit against Swiss tax.")
+
+# ---------------------------------------------------------------- 6. Validation
+v["val_rows"] = [[lab, tp(a, 2), tp(b, 2), lx(f"{(b - a) * 100:+.2f}"), tp(nav, 2)]
+                 for lab, a, b, nav, ann in val_rows]
+v["val_available"] = bool(val_rows)
+v["val_text"] = (
+    "Yahoo's adjusted prices are not an official source, so the total returns used in this report were checked "
+    "against the market-price returns published by Vanguard. For all standard periods the two agree to within "
+    f"{num(val_max_gap * 100, 2)} percentage point. The small gap since inception arises because Vanguard measures "
+    "from the launch on 24 June 2008, two trading days before the first Yahoo closing price. The ETF's market "
+    "price and its net asset value (NAV) also track each other closely." if val_rows else
+    "Validation data are not available for the current sample.")
+
+# ---------------------------------------------------------------- Reproducibility
 v["method_text"] = (
-    f"Source: Yahoo Finance, downloaded with the \\texttt{{yfinance}} library and updated automatically (GitHub "
-    f"repository \\url{{https://github.com/cedricmasset98/donnees-marche}}). VT: daily closing prices and prices adjusted for "
-    f"dividends and splits (``Adj Close''), from {dt(idx[0])} to {dt(idx[-1])}. Risk-free rate: 13-week US T-bill "
-    f"(\\texttt{{\\^{{}}IRX}}), converted to a daily rate by dividing by 252. Currency: USD/CHF "
-    f"(\\texttt{{CHF=X}}), last available rate for each VT trading day. Annualised volatilities use 252 trading "
-    f"days; annualised returns use calendar time. These analyses are descriptive and historical; they do not "
-    f"constitute investment advice.")
+    "Source: Yahoo Finance, downloaded with the \\texttt{yfinance} library and updated automatically (GitHub "
+    "repository \\url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices "
+    "adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\\texttt{\\^{}IRX}). "
+    "Currency: USD/CHF (\\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and "
+    "Sortino ratios use monthly returns; Sharpe confidence intervals follow \\citet{mertens2002} and "
+    f"\\citet{{opdyke2007}}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed {RNG_SEED}. "
+    f"Data file fingerprint (SHA-256 of \\texttt{{data/VT.csv}}): \\texttt{{{data_sha}}}. Software: {versions}. "
+    "These analyses are descriptive and historical; they do not constitute investment advice.")
 
 env = jinja2.Environment(
     block_start_string=r"\BLOCK{", block_end_string="}", variable_start_string=r"\VAR{",
