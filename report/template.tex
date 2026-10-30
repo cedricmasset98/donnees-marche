@@ -1,0 +1,392 @@
+% ---------------------------------------------------------------------------
+% VT analysis report — LaTeX template
+%
+% Rendered by analysis.py with Jinja2. Values are inserted with VAR placeholders
+% and logic with BLOCK statements. Edit the layout and wording freely; keep the
+% placeholders. Figures are vector PDFs in report/figures/.
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage[scaled=0.9]{helvet}
+\usepackage{courier}
+\usepackage[a4paper,margin=2.4cm,top=2.3cm,bottom=2.6cm]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage[round]{natbib}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{ink}{HTML}{121211}
+\definecolor{muted}{HTML}{6E6D68}
+\definecolor{accent}{HTML}{1F5FAD}
+\definecolor{rule}{HTML}{C9C8C0}
+
+\graphicspath{{figures/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\aboverulesep}{0.25ex}
+\setlength{\belowrulesep}{0.4ex}
+
+\titleformat{\section}{\sffamily\Large\bfseries\color{ink}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{ink}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.35em}
+\newcommand{\keep}[1]{\Needspace{#1\baselineskip}}
+
+\captionsetup{font=small,labelfont={bf,sf},labelsep=period,justification=raggedright,singlelinecheck=false,skip=4pt}
+\captionsetup[table]{position=top}
+
+\newcommand{\note}[1]{{\footnotesize\color{muted}#1\par}}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{muted}\sffamily Vanguard Total World Stock ETF (VT) --- Price analysis since inception}
+\fancyfoot[R]{\footnotesize\color{muted}\sffamily \thepage}
+
+\hypersetup{pdftitle={VT -- Price analysis since inception}, pdfauthor={\VAR{author}}}
+
+\begin{document}
+
+% ---------------------------------------------------------------- Title
+\thispagestyle{fancy}
+{\sffamily
+{\footnotesize\color{muted}\MakeUppercase{Market data report} \textperiodcentered{} \VAR{generated}}\par\vspace{0.6em}
+{\fontsize{22}{26}\selectfont\bfseries\color{ink} Vanguard Total World Stock ETF (VT)\par}\vspace{0.3em}
+{\large\color{muted} Price analysis since inception, \VAR{first_date} -- \VAR{last_date}\par}\vspace{0.2em}
+{\small\color{muted} \VAR{author} \textperiodcentered{} \VAR{n_days} trading days \textperiodcentered{} Yahoo Finance data\par}
+}
+\vspace{0.4em}
+
+\section*{Summary}
+
+\begin{table}[H]
+\footnotesize
+\begin{tabularx}{\linewidth}{L r}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Price at inception $\rightarrow$ latest price & USD \VAR{px0} $\rightarrow$ \VAR{px1} \\
+Cumulative return (price / total return) & \VAR{cum_px} / \VAR{cum_tr} \\
+Annualised return (price / total return) & \VAR{cagr_px} / \VAR{cagr_tr} \\
+Annualised total return in CHF & \VAR{cagr_chf} \\
+Annualised volatility & \VAR{vol} \\
+Sharpe ratio (average risk-free rate \VAR{rf_mean}) & \VAR{sharpe} \\
+Sortino ratio & \VAR{sortino} \\
+Maximum drawdown (total return) & \VAR{mdd} (trough on \VAR{mdd_date}) \\
+Calmar ratio & \VAR{calmar} \\
+Probability of loss over 1 / 5 / 10 years & \VAR{ploss} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{price.pdf}
+\caption{Closing price and total return (dividends reinvested), USD, log scale. Equal slopes represent equal percentage returns; the widening gap reflects reinvested dividends.}
+\end{figure}
+
+\subsection*{Key takeaways}
+\begin{itemize}[leftmargin=1.2em,itemsep=0.25em,topsep=0.2em]
+\BLOCK{for t in takeaways}
+  \item \VAR{t}
+\BLOCK{endfor}
+\end{itemize}
+
+\clearpage
+% ---------------------------------------------------------------- 1
+\section{Return and risk}
+
+\keep{22}\subsection{Calendar-year returns}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{annual.pdf}
+\caption{Calendar-year returns, price and total return. * Partial years.}
+\end{figure}
+\note{\VAR{annual_note}}
+
+\keep{22}\subsection{One-year rolling volatility}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{volatility.pdf}
+\caption{Annualised volatility of daily total returns over a rolling one-year window.}
+\end{figure}
+\VAR{vol_text}
+
+\keep{22}\subsection{Drawdowns}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{drawdown.pdf}
+\caption{Decline of the total-return index from its previous peak.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Five largest drawdowns (total return).}
+\begin{tabularx}{\linewidth}{l l l R R R}
+\toprule
+\textbf{Peak} & \textbf{Trough} & \textbf{Recovery} & \textbf{Drawdown} & \textbf{Decline (days)} & \textbf{Recovery (days)} \\
+\midrule
+\BLOCK{for r in dd_rows}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} & \VAR{r[5]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Lengths in trading days. Because VT was launched during the global financial crisis, the first peak is the launch date itself.}
+
+\keep{22}\subsection{Risk-adjusted ratios by sub-period}
+\begin{table}[H]
+\small
+\caption{Return and risk by sub-period (total return).}
+\begin{tabularx}{\linewidth}{L r r r r r r}
+\toprule
+\textbf{Period} & \textbf{Ann.\ return} & \textbf{Volatility} & \textbf{Sharpe} & \textbf{Sortino} & \textbf{Max.\ DD} & \textbf{Calmar} \\
+\midrule
+\BLOCK{for r in sub_rows}
+\BLOCK{if loop.last}\midrule{}\BLOCK{endif}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} & \VAR{r[5]} & \VAR{r[6]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Sharpe and Sortino ratios use returns in excess of the 13-week US T-bill (\texttt{\^{}IRX}): Sharpe divides the mean excess return by its volatility, Sortino by the downside deviation of excess returns. Calmar is the annualised return divided by the maximum drawdown of the sub-period.}
+
+% ---------------------------------------------------------------- 2
+\keep{30}
+\section{Distribution of returns}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{distribution.pdf}
+\caption{Daily total returns: histogram against a normal density with the same mean and variance (left), and normal Q--Q plot (right).}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Descriptive statistics of daily returns.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+\textbf{Statistic} & \textbf{Value} & \textbf{Normal benchmark} \\
+\midrule
+Mean / standard deviation & \VAR{mu} / \VAR{sd} & -- \\
+Skewness & \VAR{skew} & 0 \\
+Kurtosis & \VAR{kurt} & 3 \\
+Jarque--Bera statistic & \VAR{jb} & -- \\
+Days beyond $\pm 4$ standard deviations & \VAR{beyond4} & \VAR{expected4} expected \\
+Worst day & \VAR{worst} & -- \\
+Best day & \VAR{best} & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\VAR{dist_text}
+
+\keep{22}\subsection{Value at Risk and Expected Shortfall}
+\begin{table}[H]
+\small
+\caption{One-day VaR and Expected Shortfall, historical and normal.}
+\begin{tabularx}{\linewidth}{l R R R R >{\raggedleft\arraybackslash}p{3.6cm}}
+\toprule
+\textbf{Level} & \textbf{Hist.\ VaR} & \textbf{Hist.\ ES} & \textbf{Normal VaR} & \textbf{Normal ES} & \textbf{Normal VaR breaches} \\
+\midrule
+\BLOCK{for r in var_rows}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} & \VAR{r[5]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\VAR{var_text}
+
+\keep{22}\subsection{Volatility clustering}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{acf.pdf}
+\caption{Autocorrelation of daily log returns and squared log returns, lags 1 to 20, with the 95\% band under independence.}
+\end{figure}
+\VAR{acf_text}
+
+% ---------------------------------------------------------------- 3
+\keep{30}
+\section{Market efficiency}
+
+\keep{22}\subsection{First-order autocorrelation}
+\begin{table}[H]
+\small
+\caption{First-order autocorrelation of log returns.}
+\begin{tabularx}{\linewidth}{L r r r r}
+\toprule
+\textbf{Frequency} & \textbf{Observations} & \textbf{$\hat\rho_1$} & \textbf{$t$-statistic} & \textbf{$p$-value} \\
+\midrule
+\BLOCK{for r in ac_rows}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{$t$-statistic approximated by $\hat\rho_1\sqrt{n}$ (standard error $1/\sqrt{n}$ under the random-walk hypothesis). It overstates significance when volatility clusters; the robust version of this test is the variance ratio $VR(2)$ below.}
+
+\VAR{ac_text}
+
+\keep{22}\subsection{Variance ratio test}
+Under the random-walk hypothesis, the variance of $q$-period returns is $q$ times the one-period variance, so
+\[
+VR(q) = \frac{\operatorname{Var}\left(r_t + r_{t-1} + \dots + r_{t-q+1}\right)}{q \,\operatorname{Var}(r_t)} = 1 .
+\]
+A ratio below 1 signals mean reversion, a ratio above 1 persistence. Following \citet{lo1988}, the test statistic $z^*(q)$ is robust to heteroskedasticity, which is essential given the volatility clustering documented above.
+
+\begin{table}[H]
+\small
+\caption{Lo--MacKinlay variance ratio test on daily log total returns.}
+\begin{tabularx}{\linewidth}{l R R R R}
+\toprule
+\textbf{Horizon $q$ (days)} & \textbf{$VR(q)$} & \textbf{$z^*(q)$} & \textbf{$p$-value} & \textbf{Interpretation} \\
+\midrule
+\BLOCK{for r in vr_rows}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\VAR{vr_text}
+
+\keep{22}\subsection{Calendar effects}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{calendar.pdf}
+\caption{Mean daily return by weekday (left) and mean monthly return by calendar month (right), with 95\% confidence intervals. May to October in orange.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Tests of calendar effects.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+\textbf{Test} & \textbf{Result} & \textbf{$p$-value} \\
+\midrule
+Equal mean returns across weekdays (ANOVA) & \VAR{cal_day} & \VAR{p_day} \\
+January effect: January vs other months (Welch) & \VAR{cal_jan} & \VAR{p_jan} \\
+``Sell in May'': Nov--Apr vs May--Oct (\VAR{n_halves}) & \VAR{cal_sim} & \VAR{p_sim} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{\VAR{cal_note}}
+
+\keep{22}\subsection{200-day moving-average strategy}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ma200.pdf}
+\caption{Growth of USD 10{,}000: buy and hold vs a 200-day moving-average rule. Shaded areas: strategy out of the market.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Buy and hold vs 200-day moving average, common period.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+ & \textbf{Buy and hold} & \textbf{200-day moving average} \\
+\midrule
+Annualised return & \VAR{ma[0][0]} & \VAR{ma[0][1]} \\
+Volatility & \VAR{ma[1][0]} & \VAR{ma[1][1]} \\
+Sharpe ratio & \VAR{ma[2][0]} & \VAR{ma[2][1]} \\
+Maximum drawdown & \VAR{ma[3][0]} & \VAR{ma[3][1]} \\
+Final value of USD 10{,}000 & \VAR{ma[4][0]} & \VAR{ma[4][1]} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{\VAR{ma_note}}
+
+\VAR{ma_text}
+
+% ---------------------------------------------------------------- 4
+\keep{30}
+\section{Holding period and investor behaviour}
+
+\keep{22}\subsection{Rolling returns by holding period}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{rolling.pdf}
+\caption{Annualised total return over rolling 1-, 5- and 10-year windows, by end of window.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Distribution of rolling returns (overlapping monthly windows, annualised).}
+\begin{tabularx}{\linewidth}{l r r R r r}
+\toprule
+\textbf{Horizon} & \textbf{Windows} & \textbf{P(loss)} & \textbf{Worst (window end)} & \textbf{Median} & \textbf{Best} \\
+\midrule
+\BLOCK{for r in roll_rows}
+\VAR{r[0]} & \VAR{r[1]} & \VAR{r[2]} & \VAR{r[3]} & \VAR{r[4]} & \VAR{r[5]} \\
+\BLOCK{endfor}
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{The longer the horizon, the narrower the dispersion of outcomes. Long windows overlap heavily and are not independent: over 10 years, the history contains only about one and a half distinct periods.}
+
+\keep{22}\subsection{The cost of missing the best days}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{best_days.pdf}
+\caption{Final value of USD 10{,}000 invested at inception, with and without the best trading days.}
+\end{figure}
+\VAR{best_text}
+
+\keep{22}\subsection{Monthly savings plan and lump-sum investing}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{savings.pdf}
+\caption{Left: value of a USD \VAR{contribution} monthly plan vs amount paid in. Right: lump sum minus 12-month averaging, value gap after 12 months, by starting month.}
+\end{figure}
+\VAR{plan_text}
+
+% ---------------------------------------------------------------- 5
+\keep{30}
+\section{A Swiss investor's perspective}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{chf.pdf}
+\caption{Total return in USD and in CHF, rebased to 100 at inception.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{VT in US dollars and in Swiss francs.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+ & \textbf{In USD} & \textbf{In CHF} \\
+\midrule
+Annualised total return & \VAR{cagr_usd} & \VAR{cagr_chf} \\
+Annualised volatility & \VAR{vol} & \VAR{vol_chf} \\
+USD/CHF over the period & -- & \VAR{fx_move} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\VAR{chf_text}
+
+% ---------------------------------------------------------------- Methodology
+\section*{Data and methodology}
+\note{\VAR{method_text}}
+
+\begin{thebibliography}{9}
+\footnotesize
+\bibitem[Lo and MacKinlay(1988)]{lo1988}
+Lo, A.~W. and MacKinlay, A.~C. (1988). Stock market prices do not follow random walks: Evidence from a simple specification test. \emph{Review of Financial Studies}, 1(1), 41--66.
+\end{thebibliography}
+
+\end{document}

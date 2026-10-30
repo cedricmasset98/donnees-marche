@@ -16,7 +16,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install yfinance pandas scipy matplotlib reportlab
+      - name: Installer LaTeX
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends latexmk texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended > /dev/null
+      - run: pip install yfinance pandas scipy matplotlib jinja2
       - run: python telecharger.py
       - name: Regenerer le rapport VT (sans requete Yahoo)
         run: python analysis.py

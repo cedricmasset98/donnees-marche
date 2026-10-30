@@ -1,0 +1,398 @@
+% ---------------------------------------------------------------------------
+% VT analysis report — LaTeX template
+%
+% Rendered by analysis.py with Jinja2. Values are inserted with VAR placeholders
+% and logic with BLOCK statements. Edit the layout and wording freely; keep the
+% placeholders. Figures are vector PDFs in report/figures/.
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}
+\usepackage[scaled=0.9]{helvet}
+\usepackage{courier}
+\usepackage[a4paper,margin=2.4cm,top=2.3cm,bottom=2.6cm]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage[round]{natbib}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{ink}{HTML}{121211}
+\definecolor{muted}{HTML}{6E6D68}
+\definecolor{accent}{HTML}{1F5FAD}
+\definecolor{rule}{HTML}{C9C8C0}
+
+\graphicspath{{figures/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\aboverulesep}{0.25ex}
+\setlength{\belowrulesep}{0.4ex}
+
+\titleformat{\section}{\sffamily\Large\bfseries\color{ink}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{ink}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.35em}
+\newcommand{\keep}[1]{\Needspace{#1\baselineskip}}
+
+\captionsetup{font=small,labelfont={bf,sf},labelsep=period,justification=raggedright,singlelinecheck=false,skip=4pt}
+\captionsetup[table]{position=top}
+
+\newcommand{\note}[1]{{\footnotesize\color{muted}#1\par}}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{muted}\sffamily Vanguard Total World Stock ETF (VT) --- Price analysis since inception}
+\fancyfoot[R]{\footnotesize\color{muted}\sffamily \thepage}
+
+\hypersetup{pdftitle={VT -- Price analysis since inception}, pdfauthor={Cédric Masset}}
+
+\begin{document}
+
+% ---------------------------------------------------------------- Title
+\thispagestyle{fancy}
+{\sffamily
+{\footnotesize\color{muted}\MakeUppercase{Market data report} \textperiodcentered{} 30 October 2026}\par\vspace{0.6em}
+{\fontsize{22}{26}\selectfont\bfseries\color{ink} Vanguard Total World Stock ETF (VT)\par}\vspace{0.3em}
+{\large\color{muted} Price analysis since inception, 26 Jun 2008 -- 29 Oct 2026\par}\vspace{0.2em}
+{\small\color{muted} Cédric Masset \textperiodcentered{} 4,615 trading days \textperiodcentered{} Yahoo Finance data\par}
+}
+\vspace{0.4em}
+
+\section*{Summary}
+
+\begin{table}[H]
+\footnotesize
+\begin{tabularx}{\linewidth}{L r}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Price at inception $\rightarrow$ latest price & USD 49.58 $\rightarrow$ 157.97 \\
+Cumulative return (price / total return) & 219\% / 368\% \\
+Annualised return (price / total return) & 6.5\% / 8.8\% \\
+Annualised total return in CHF & 7.5\% \\
+Annualised volatility & 20.4\% \\
+Sharpe ratio (average risk-free rate 1.4\%) & 0.45 \\
+Sortino ratio & 0.62 \\
+Maximum drawdown (total return) & $-$50.3\% (trough on 09 Mar 2009) \\
+Calmar ratio & 0.17 \\
+Probability of loss over 1 / 5 / 10 years & 22\% / 0\% / 0\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{price.pdf}
+\caption{Closing price and total return (dividends reinvested), USD, log scale. Equal slopes represent equal percentage returns; the widening gap reflects reinvested dividends.}
+\end{figure}
+
+\subsection*{Key takeaways}
+\begin{itemize}[leftmargin=1.2em,itemsep=0.25em,topsep=0.2em]
+  \item Over 18.3 years, VT returned 8.8\% a year with dividends reinvested, of which roughly 2.3\% a year came from dividends.
+  \item The price of that return was 20\% annual volatility and a maximum drawdown of 50\% during the global financial crisis.
+  \item Daily returns are clearly non-normal (kurtosis of 16.1) and volatility clusters over time; their direction is only weakly predictable from one day to the next, and not at all over longer horizons.
+  \item For a Swiss franc investor, the weaker dollar cut the annualised return by 1.3\% a year (7.5\% in CHF).
+\end{itemize}
+
+\clearpage
+% ---------------------------------------------------------------- 1
+\section{Return and risk}
+
+\keep{22}\subsection{Calendar-year returns}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{annual.pdf}
+\caption{Calendar-year returns, price and total return. * Partial years.}
+\end{figure}
+\note{* Partial years: 2008 (from inception) and 2026 (up to 29 Oct 2026). Of the 17 full years, the best was 2009 (+32.7\%) and the worst 2022 ($-$18.0\%); 4 years were negative.}
+
+\keep{22}\subsection{One-year rolling volatility}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{volatility.pdf}
+\caption{Annualised volatility of daily total returns over a rolling one-year window.}
+\end{figure}
+Volatility varies sharply across regimes: from 7\% at its calmest (year ending 14 Dec 2017) to 49\% at its most turbulent (year ending 23 Jul 2009). A single full-period average therefore hides very different environments.
+
+\keep{22}\subsection{Drawdowns}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{drawdown.pdf}
+\caption{Decline of the total-return index from its previous peak.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Five largest drawdowns (total return).}
+\begin{tabularx}{\linewidth}{l l l R R R}
+\toprule
+\textbf{Peak} & \textbf{Trough} & \textbf{Recovery} & \textbf{Drawdown} & \textbf{Decline (days)} & \textbf{Recovery (days)} \\
+\midrule
+26 Jun 2008 & 09 Mar 2009 & 29 Dec 2010 & $-$50.3\% & 175 & 457 \\
+12 Feb 2020 & 23 Mar 2020 & 24 Aug 2020 & $-$34.2\% & 27 & 107 \\
+08 Nov 2021 & 12 Oct 2022 & 29 Jan 2024 & $-$26.4\% & 233 & 324 \\
+29 Apr 2011 & 03 Oct 2011 & 02 Jan 2013 & $-$23.8\% & 108 & 313 \\
+26 Jan 2018 & 24 Dec 2018 & 28 Oct 2019 & $-$20.0\% & 229 & 212 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Lengths in trading days. Because VT was launched during the global financial crisis, the first peak is the launch date itself.}
+
+\keep{22}\subsection{Risk-adjusted ratios by sub-period}
+\begin{table}[H]
+\small
+\caption{Return and risk by sub-period (total return).}
+\begin{tabularx}{\linewidth}{L r r r r r r}
+\toprule
+\textbf{Period} & \textbf{Ann.\ return} & \textbf{Volatility} & \textbf{Sharpe} & \textbf{Sortino} & \textbf{Max.\ DD} & \textbf{Calmar} \\
+\midrule
+2008--2012 & 1.9\% & 29.7\% & 0.21 & 0.29 & $-$50.3\% & 0.04 \\
+2013--2017 & 11.1\% & 12.6\% & 0.88 & 1.22 & $-$19.8\% & 0.56 \\
+2018--2022 & 5.3\% & 20.6\% & 0.29 & 0.40 & $-$34.2\% & 0.15 \\
+2023--2026 & 19.3\% & 14.1\% & 1.01 & 1.49 & $-$16.5\% & 1.17 \\
+\midrule{}Full period & 8.8\% & 20.4\% & 0.45 & 0.62 & $-$50.3\% & 0.17 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Sharpe and Sortino ratios use returns in excess of the 13-week US T-bill (\texttt{\^{}IRX}): Sharpe divides the mean excess return by its volatility, Sortino by the downside deviation of excess returns. Calmar is the annualised return divided by the maximum drawdown of the sub-period.}
+
+% ---------------------------------------------------------------- 2
+\keep{30}
+\section{Distribution of returns}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{distribution.pdf}
+\caption{Daily total returns: histogram against a normal density with the same mean and variance (left), and normal Q--Q plot (right).}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Descriptive statistics of daily returns.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+\textbf{Statistic} & \textbf{Value} & \textbf{Normal benchmark} \\
+\midrule
+Mean / standard deviation & 0.042\% / 1.29\% & -- \\
+Skewness & $-$0.30 & 0 \\
+Kurtosis & 16.09 & 3 \\
+Jarque--Bera statistic & 33,025 ($p$ $<$ 0.001) & -- \\
+Days beyond $\pm 4$ standard deviations & 47 & 0.29 expected \\
+Worst day & $-$12.1\% (15 Oct 2008) & -- \\
+Best day & +13.5\% (13 Oct 2008) & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+The tails are far fatter than those of a normal distribution: 47 days moved by more than four standard deviations, whereas a normal distribution would predict 0.3 over the period. The negative skewness means that large declines are more pronounced than large gains.
+
+\keep{22}\subsection{Value at Risk and Expected Shortfall}
+\begin{table}[H]
+\small
+\caption{One-day VaR and Expected Shortfall, historical and normal.}
+\begin{tabularx}{\linewidth}{l R R R R >{\raggedleft\arraybackslash}p{3.6cm}}
+\toprule
+\textbf{Level} & \textbf{Hist.\ VaR} & \textbf{Hist.\ ES} & \textbf{Normal VaR} & \textbf{Normal ES} & \textbf{Normal VaR breaches} \\
+\midrule
+95\% & $-$1.82\% & $-$3.16\% & $-$2.07\% & $-$2.61\% & 4.01\% (expected 5\%) \\
+99\% & $-$3.83\% & $-$5.67\% & $-$2.95\% & $-$3.39\% & 1.91\% (expected 1\%) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+At 99\%, the parametric normal VaR understates risk: it is breached more often than expected, and the historical Expected Shortfall is markedly higher. This is the direct consequence of the fat tails documented above.
+
+\keep{22}\subsection{Volatility clustering}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{acf.pdf}
+\caption{Autocorrelation of daily log returns and squared log returns, lags 1 to 20, with the 95\% band under independence.}
+\end{figure}
+Apart from a small effect at the first lag (see Section~3), returns show little autocorrelation (Ljung--Box with 10 lags: $Q = 89.9$). Squared returns, by contrast, are strongly and persistently autocorrelated ($Q = 4,305$, $p < 0.001$). A large move tends to be followed by further large moves of either sign, the behaviour captured by ARCH and GARCH models.
+
+% ---------------------------------------------------------------- 3
+\keep{30}
+\section{Market efficiency}
+
+\keep{22}\subsection{First-order autocorrelation}
+\begin{table}[H]
+\small
+\caption{First-order autocorrelation of log returns.}
+\begin{tabularx}{\linewidth}{L r r r r}
+\toprule
+\textbf{Frequency} & \textbf{Observations} & \textbf{$\hat\rho_1$} & \textbf{$t$-statistic} & \textbf{$p$-value} \\
+\midrule
+Daily & 4,614 & $-$0.105 & $-$7.17 & $<$ 0.001 \\
+Weekly & 957 & $-$0.024 & $-$0.73 & 0.467 \\
+Monthly & 220 & 0.033 & 0.48 & 0.629 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{$t$-statistic approximated by $\hat\rho_1\sqrt{n}$ (standard error $1/\sqrt{n}$ under the random-walk hypothesis). It overstates significance when volatility clusters; the robust version of this test is the variance ratio $VR(2)$ below.}
+
+Daily autocorrelation is negative ($-$0.105): a gain tends to be slightly reversed the following day. The effect is concentrated in crises: excluding 2008--2009 and February to June 2020, it falls to $-$0.044, still negative but less than half as large. Possible explanations include overreaction on turbulent days, or temporary gaps between the ETF price and the value of its foreign holdings, which trade at different hours. At weekly and monthly frequencies, no significant autocorrelation appears.
+
+\keep{22}\subsection{Variance ratio test}
+Under the random-walk hypothesis, the variance of $q$-period returns is $q$ times the one-period variance, so
+\[
+VR(q) = \frac{\operatorname{Var}\left(r_t + r_{t-1} + \dots + r_{t-q+1}\right)}{q \,\operatorname{Var}(r_t)} = 1 .
+\]
+A ratio below 1 signals mean reversion, a ratio above 1 persistence. Following \citet{lo1988}, the test statistic $z^*(q)$ is robust to heteroskedasticity, which is essential given the volatility clustering documented above.
+
+\begin{table}[H]
+\small
+\caption{Lo--MacKinlay variance ratio test on daily log total returns.}
+\begin{tabularx}{\linewidth}{l R R R R}
+\toprule
+\textbf{Horizon $q$ (days)} & \textbf{$VR(q)$} & \textbf{$z^*(q)$} & \textbf{$p$-value} & \textbf{Interpretation} \\
+\midrule
+2 & 0.895 & $-$2.97 & 0.003 & mean reversion \\
+5 & 0.830 & $-$2.08 & 0.037 & mean reversion \\
+10 & 0.778 & $-$1.80 & 0.072 & not rejected \\
+20 & 0.760 & $-$1.38 & 0.167 & not rejected \\
+\bottomrule
+\end{tabularx}
+\end{table}
+The random-walk hypothesis is rejected at the 5\% level for $q = 2, 5$. Even where a deviation is statistically significant, it is small in magnitude and would need to survive transaction costs to be exploitable.
+
+\keep{22}\subsection{Calendar effects}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{calendar.pdf}
+\caption{Mean daily return by weekday (left) and mean monthly return by calendar month (right), with 95\% confidence intervals. May to October in orange.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Tests of calendar effects.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+\textbf{Test} & \textbf{Result} & \textbf{$p$-value} \\
+\midrule
+Equal mean returns across weekdays (ANOVA) & $F = 0.37$ & 0.828 \\
+January effect: January vs other months (Welch) & 0.38\% vs 0.86\% per month & 0.709 \\
+``Sell in May'': Nov--Apr vs May--Oct (18 and 18 half-years) & 7.1\% vs 4.8\% per half-year & 0.501 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{With fewer than twenty observations per calendar month, differences between months are dominated by statistical noise. None of the three effects is significant at the 5\% level.}
+
+\keep{22}\subsection{200-day moving-average strategy}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ma200.pdf}
+\caption{Growth of USD 10{,}000: buy and hold vs a 200-day moving-average rule. Shaded areas: strategy out of the market.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Buy and hold vs 200-day moving average, common period.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+ & \textbf{Buy and hold} & \textbf{200-day moving average} \\
+\midrule
+Annualised return & 12.0\% & 6.2\% \\
+Volatility & 17.6\% & 11.7\% \\
+Sharpe ratio & 0.65 & 0.45 \\
+Maximum drawdown & $-$34.2\% & $-$22.5\% \\
+Final value of USD 10{,}000 & USD 72,768 & USD 28,544 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Rule: invested in VT when the previous day's close is above its 200-day moving average, otherwise held in T-bills; switches are executed at that same close. Cost of 0.10\% per switch, 143 switches in total; the strategy was invested 77\% of the time. Common period starting 14 Apr 2009, since the moving average needs 200 days of history.}
+
+The strategy reduces the maximum drawdown ($-$23\% vs $-$34\%), but at the cost of 5.8\% a year in return. It often exits after a fall and re-enters after the rebound: late and repeated signals (``whipsaws'') are costly in a market that recovers quickly.
+
+% ---------------------------------------------------------------- 4
+\keep{30}
+\section{Holding period and investor behaviour}
+
+\keep{22}\subsection{Rolling returns by holding period}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{rolling.pdf}
+\caption{Annualised total return over rolling 1-, 5- and 10-year windows, by end of window.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Distribution of rolling returns (overlapping monthly windows, annualised).}
+\begin{tabularx}{\linewidth}{l r r R r r}
+\toprule
+\textbf{Horizon} & \textbf{Windows} & \textbf{P(loss)} & \textbf{Worst (window end)} & \textbf{Median} & \textbf{Best} \\
+\midrule
+1 year & 209 & 22\% & $-$28.4\% (Jun 2009) & 13.1\% & 59.3\% \\
+5 years & 161 & 0\% & 2.8\% (Mar 2020) & 10.1\% & 20.0\% \\
+10 years & 101 & 0\% & 6.0\% (Mar 2020) & 9.3\% & 13.1\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{The longer the horizon, the narrower the dispersion of outcomes. Long windows overlap heavily and are not independent: over 10 years, the history contains only about one and a half distinct periods.}
+
+\keep{22}\subsection{The cost of missing the best days}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{best_days.pdf}
+\caption{Final value of USD 10{,}000 invested at inception, with and without the best trading days.}
+\end{figure}
+Missing the 10 best days out of 4,614 cuts the annualised return from 8.8\% to 4.1\%. The reverse exercise is just as striking: avoiding the 10 worst days would have lifted the final value to USD 114,446. 7 of the 10 best days fall within two weeks of one of the 10 worst. They occur in the same crisis periods: avoiding the worst days without missing the best would require perfect timing.
+
+\keep{22}\subsection{Monthly savings plan and lump-sum investing}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{savings.pdf}
+\caption{Left: value of a USD 500 monthly plan vs amount paid in. Right: lump sum minus 12-month averaging, value gap after 12 months, by starting month.}
+\end{figure}
+Investing USD 500 at the end of every month since inception (220 contributions, USD 110,000 in total) would be worth USD 344,497 today, an internal rate of return of 11.3\% a year.
+
+Across the 209 possible monthly starting points, investing a sum all at once beat spreading it over 12 months (with the uninvested cash earning the T-bill rate) in 72\% of cases, with an average advantage of 4.5\% after 12 months. Because the market rises most of the time, waiting costs money on average; averaging in mainly limits the regret of investing just before a decline.
+
+% ---------------------------------------------------------------- 5
+\keep{30}
+\section{A Swiss investor's perspective}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{chf.pdf}
+\caption{Total return in USD and in CHF, rebased to 100 at inception.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{VT in US dollars and in Swiss francs.}
+\begin{tabularx}{\linewidth}{L r r}
+\toprule
+ & \textbf{In USD} & \textbf{In CHF} \\
+\midrule
+Annualised total return & 8.8\% & 7.5\% \\
+Annualised volatility & 20.4\% & 22.5\% \\
+USD/CHF over the period & -- & 1.0237 $\rightarrow$ 0.8280 ($-$1.2\% a year) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+The dollar depreciated against the franc, costing an unhedged Swiss investor about 1.3\% of return a year. The daily correlation between VT and USD/CHF is $-$0.05: the dollar tends to strengthen slightly when equities fall, which cushions losses in CHF a little, but the relationship is weak. Because VT is a global fund, its true exposure is to a basket of currencies: USD/CHF captures only part of the currency effect.
+
+% ---------------------------------------------------------------- Methodology
+\section*{Data and methodology}
+\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''), from 26 Jun 2008 to 29 Oct 2026. Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}), converted to a daily rate by dividing by 252. Currency: USD/CHF (\texttt{CHF=X}), last available rate for each VT trading day. Annualised volatilities use 252 trading days; annualised returns use calendar time. These analyses are descriptive and historical; they do not constitute investment advice.}
+
+\begin{thebibliography}{9}
+\footnotesize
+\bibitem[Lo and MacKinlay(1988)]{lo1988}
+Lo, A.~W. and MacKinlay, A.~C. (1988). Stock market prices do not follow random walks: Evidence from a simple specification test. \emph{Review of Financial Studies}, 1(1), 41--66.
+\end{thebibliography}
+
+\end{document}
