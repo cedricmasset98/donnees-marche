@@ -96,15 +96,22 @@ def drawdown(series):
 
 
 def metrics(r, rfq):
-    """r: daily returns; rfq: aligned daily risk-free rate."""
+    """r: daily returns; rfq: aligned daily risk-free rate.
+
+    The annualised return uses calendar time (from the close preceding the first
+    return to the last close), consistent with cagr(). The Sharpe ratio divides the
+    mean excess return by the volatility of excess returns; Sortino uses the
+    downside deviation of excess returns (target = risk-free rate).
+    """
     ex = r - rfq
     vol = r.std() * np.sqrt(DAYS_PER_YEAR)
-    neg = ex[ex < 0]
-    down_vol = np.sqrt((neg ** 2).sum() / len(ex)) * np.sqrt(DAYS_PER_YEAR)
+    down_vol = np.sqrt((ex.clip(upper=0) ** 2).mean()) * np.sqrt(DAYS_PER_YEAR)
     value = (1 + r).cumprod()
-    ca = value.iloc[-1] ** (DAYS_PER_YEAR / len(r)) - 1
+    start = idx[idx.get_loc(r.index[0]) - 1]
+    ca = value.iloc[-1] ** (365.25 / (r.index[-1] - start).days) - 1
     mdd = drawdown(pd.concat([pd.Series([1.0]), value.reset_index(drop=True)])).min()
-    return {"cagr": ca, "vol": vol, "sharpe": ex.mean() * DAYS_PER_YEAR / vol,
+    return {"cagr": ca, "vol": vol,
+            "sharpe": ex.mean() / ex.std() * np.sqrt(DAYS_PER_YEAR),
             "sortino": ex.mean() * DAYS_PER_YEAR / down_vol, "mdd": mdd, "calmar": ca / abs(mdd)}
 
 
@@ -654,12 +661,14 @@ S.append(PageBreak())
 S.append(P("Drawdowns", s_h2))
 S.append(c_dd())
 rows = [["Peak", "Trough", "Recovery", "Drawdown", "Length of decline", "Time to recover"]]
+pos = {d: i for i, d in enumerate(idx)}
 for start, trough, end, depth in top_dd:
-    rec = f"{np.busday_count(trough.date(), end.date())} days" if end is not None else "not yet"
+    rec = f"{pos[end] - pos[trough]} days" if end is not None else "not yet"
     rows.append([dt(start), dt(trough), dt(end) if end is not None else "–", pct(depth),
-                 f"{np.busday_count(start.date(), trough.date())} days", rec])
+                 f"{pos[trough] - pos[start]} days", rec])
 S.append(table(rows, [2.6, 2.6, 2.6, 2.2, 3.4, 3.6], right_from=3))
-S.append(P("Based on total return. Lengths are in business days.", s_note))
+S.append(P("Based on total return. Lengths are in trading days. Because VT was launched during the global "
+           "financial crisis, the first peak is the launch date itself.", s_note))
 
 S.append(P("Risk-adjusted ratios by sub-period", s_h2))
 rows = [["Period", "Ann. return", "Volatility", "Sharpe", "Sortino", "Max. drawdown", "Calmar"]]
@@ -667,8 +676,8 @@ for d0, d1, m in sub + [(None, None, full)]:
     rows.append([f"{d0.year}–{d1.year}" if d0 is not None else "Full period", pct(m["cagr"]), pct(m["vol"]),
                  num(m["sharpe"]), num(m["sortino"]), pct(m["mdd"]), num(m["calmar"])])
 S.append(table(rows, [3.4, 2.4, 2.1, 1.8, 1.8, 2.6, 1.8]))
-S.append(P("Sharpe and Sortino ratios use returns in excess of the 13-week US T-bill (^IRX). Sortino uses the "
-           "volatility of negative excess returns only. Calmar is the annualised return divided by the maximum "
+S.append(P("Sharpe and Sortino ratios use returns in excess of the 13-week US T-bill (^IRX): Sharpe divides the "
+           "mean excess return by its volatility, Sortino by the downside deviation of excess returns. Calmar is the annualised return divided by the maximum "
            "drawdown of the sub-period.", s_note))
 S.append(PageBreak())
 
@@ -720,7 +729,7 @@ S.append(P("t-statistic approximated by ρ·√n (standard error 1/√n under th
            "below.", s_note))
 S.append(P(f"Daily autocorrelation is negative ({num(ac_freq[0][2], 3)}): a gain tends to be slightly reversed the "
            f"following day. The effect is concentrated in crises: excluding 2008–2009 and February to June 2020, it "
-           f"falls to {num(ac1_non_crisis, 3)}. Possible explanations include overreaction on turbulent days, or "
+           f"falls to {num(ac1_non_crisis, 3)}, still negative but less than half as large. Possible explanations include overreaction on turbulent days, or "
            "temporary gaps between the ETF price and the value of its foreign holdings, which trade at different "
            "hours. At weekly and monthly frequencies, no significant autocorrelation appears."))
 
@@ -766,7 +775,7 @@ S.append(table([
     ["Final value of USD 10,000", f"USD {num(val_bh.iloc[-1] * cap, 0)}", f"USD {num(val_ma.iloc[-1] * cap, 0)}"],
 ], [6, 5.5, 5.5]))
 S.append(P(f"Rule: invested in VT if the previous day's close is above its 200-day moving average, otherwise held in "
-           f"T-bills. Cost of {pct(TRANSACTION_COST, 2)} per switch, {n_switch} switches in total; the strategy was "
+           f"T-bills; switches are executed at that same close. Cost of {pct(TRANSACTION_COST, 2)} per switch, {n_switch} switches in total; the strategy was "
            f"invested {pct(share_invested, 0)} of the time. Common period starting {dt(sig.index[0])}, since the "
            "moving average needs 200 days of history.", s_note))
 S.append(P(f"The strategy {'reduces' if m_ma['mdd'] > m_bh['mdd'] else 'does not reduce'} the maximum drawdown "
@@ -782,7 +791,7 @@ S.append(PageBreak())
 S.append(P("4. Holding period and investor behaviour", s_h1))
 S.append(P("Rolling returns by holding period", s_h2))
 S.append(c_rolling())
-rows = [["Horizon", "Periods", "Probability of loss", "Worst (annualised)", "Median", "Best"]]
+rows = [["Horizon", "Periods", "Probability of loss", "Worst (window end)", "Median", "Best"]]
 for name, n, pl, mn, dmn, med, mx in roll_rows:
     rows.append([name, str(n), pct(pl, 0), f"{pct(mn)} ({mon(dmn)})", pct(med), pct(mx)])
 S.append(table(rows, [2.2, 2, 3.3, 4.2, 2.5, 2.8]))

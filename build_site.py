@@ -42,7 +42,7 @@ summary = {
     "cagr_tr": float((tr.iloc[-1] / tr.iloc[0]) ** (1 / years) - 1),
     "vol": float(r.std() * np.sqrt(252)),
     "max_dd": float((tr / tr.cummax() - 1).min()),
-    "current_dd": float(tr.iloc[-1] / tr.max() - 1),
+    "current_dd": float(px.iloc[-1] / px.max() - 1),  # price vs all-time high closing price
     "all_time_high": round(float(px.max()), 2),
     "all_time_high_date": px.idxmax().strftime("%Y-%m-%d"),
     "trading_days": int(len(vt)),
