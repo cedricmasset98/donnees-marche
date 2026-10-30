@@ -649,6 +649,88 @@ versions = (f"Python {platform.python_version()}, pandas {pd.__version__}, NumPy
             f"SciPy {_scipy.__version__}, Matplotlib {matplotlib.__version__}")
 
 # --------------------------------------------------------------------------
+# Export for the website dashboard (heavy computations done once, here)
+# --------------------------------------------------------------------------
+import json
+
+
+def _r(x, d=6):
+    return None if x is None or (isinstance(x, float) and not np.isfinite(x)) else round(float(x), d)
+
+
+# Rolling efficiency statistics: trailing 3-year windows, evaluated at month ends
+ROLL_WIN = 756
+eff_roll = {"dates": [], "ac1": [], "ac1_se": [], "vr5": [], "z5": [], "vr20": [], "z20": []}
+lr_vals = lr_tr.values
+month_end_pos = [lr_tr.index.get_loc(d) for d in lr_tr.groupby(lr_tr.index.to_period("M")).tail(1).index]
+for p_ in month_end_pos:
+    if p_ + 1 < ROLL_WIN:
+        continue
+    w = lr_vals[p_ + 1 - ROLL_WIN:p_ + 1]
+    e = w - w.mean()
+    rho = np.sum(e[1:] * e[:-1]) / np.sum(e ** 2)
+    se_ = np.sqrt(np.sum(e[1:] ** 2 * e[:-1] ** 2)) / np.sum(e ** 2)
+    lp_w = np.r_[0.0, np.cumsum(w)]
+    vr5, z5, _ = variance_ratio(lp_w, 5)
+    vr20, z20, _ = variance_ratio(lp_w, 20)
+    eff_roll["dates"].append(lr_tr.index[p_].strftime("%Y-%m-%d"))
+    for k_, val in (("ac1", rho), ("ac1_se", se_), ("vr5", vr5), ("z5", z5), ("vr20", vr20), ("z20", z20)):
+        eff_roll[k_].append(_r(val, 4))
+
+export = {
+    "generated": date.today().isoformat(),
+    "last_date": idx[-1].strftime("%Y-%m-%d"),
+    "report_metrics": {k: _r(val) for k, val in full.items()},
+    "vol_by_frequency": [{"frequency": n_, "obs": int(o), "vol": _r(vv)} for n_, o, vv in vol_freq],
+    "garch": {
+        "params": {k: _r(val) for k, val in zip(["mu", "omega", "alpha", "beta", "nu"], g_par)},
+        "se": {k: _r(val) for k, val in zip(["mu", "omega", "alpha", "beta", "nu"], g_se)},
+        "persistence": _r(g_persist), "half_life_days": _r(g_half_life, 1), "long_run_vol": _r(g_uncond_vol),
+        "dates": [d.strftime("%Y-%m-%d") for d in garch_vol.index],
+        "vol": [_r(val, 4) for val in garch_vol.values],
+    },
+    "var_backtest": {
+        "dates": [d.strftime("%Y-%m-%d") for d in bt_idx],
+        "ret": [_r(val, 5) for val in realised],
+        "var1": [_r(val, 5) for val in var_methods[0.01]["GARCH(1,1)-t"]],
+        "var5": [_r(val, 5) for val in var_methods[0.05]["GARCH(1,1)-t"]],
+        "table": [{"level": l_, "method": n_, "breach_rate": _r(rate), "breaches": k_, "expected": _r(l_ * n_bt, 1),
+                   "p_kupiec": _r(puc), "p_christoffersen": _r(pind), "p_cc": _r(pcc)}
+                  for l_, n_, rate, k_, puc, pind, pcc in bt_rows],
+    },
+    "efficiency": {
+        "tests": ([{"test": f"Lag-1 autocorrelation, {k_.lower()}", "stat": _r(ac_rob[k_][0], 4),
+                    "z": _r(ac_rob[k_][1], 3), "p": _r(ac_rob[k_][2], 4), "holm": _r(holm_adj[("ac", k_)], 4)}
+                   for k_ in ("Daily", "Weekly", "Monthly")]
+                  + [{"test": f"Variance ratio, q = {q_}", "stat": _r(vr_, 4), "z": _r(z_, 3), "p": _r(p_v, 4),
+                      "holm": _r(holm_adj[("vr", q_)], 4)} for q_, vr_, z_, p_v in vr_rows]
+                  + [{"test": "Weekday effect (ANOVA)", "stat": _r(f_day, 3), "z": None, "p": _r(p_day, 4),
+                      "holm": _r(holm_adj[("cal", "day")], 4)},
+                     {"test": "January effect (Welch)", "stat": _r(t_jan, 3), "z": None, "p": _r(p_jan, 4),
+                      "holm": _r(holm_adj[("cal", "jan")], 4)},
+                     {"test": "Sell in May (Welch)", "stat": _r(t_sim, 3), "z": None, "p": _r(p_sim, 4),
+                      "holm": _r(holm_adj[("cal", "sim")], 4)}]),
+        "rolling": eff_roll,
+        "ma_sensitivity": [{"window": w_, "cagr": _r(m_["cagr"]), "vol": _r(m_["vol"]), "sharpe": _r(m_["sharpe"]),
+                            "mdd": _r(m_["mdd"]), "switches": nsw_, "invested": _r(inv_)}
+                           for w_, m_, nsw_, inv_ in ma_sens]
+                          + [{"window": "Buy and hold", "cagr": _r(bh_common["cagr"]), "vol": _r(bh_common["vol"]),
+                              "sharpe": _r(bh_common["sharpe"]), "mdd": _r(bh_common["mdd"]), "switches": 0,
+                              "invested": 1.0}],
+        "ma_start": r_common.index[0].strftime("%Y-%m-%d"),
+        "ma_bootstrap": {"gap": _r(diff_obs), "lo": _r(diff_lo), "hi": _r(diff_hi), "p": _r(diff_p, 4)},
+    },
+    "probability_of_loss": [{"horizon": name, "windows": int(n_), "empirical": _r(pl), "bootstrap": _r(boot_ploss[name])}
+                            for name, n_, pl, mn, dmn, med, mx in roll_rows],
+    "validation": {"reference_date": "2026-09-30", "max_gap": _r(val_max_gap),
+                   "rows": [{"period": lab, "vanguard_market": _r(a_), "computed": _r(b_), "vanguard_nav": _r(nav_)}
+                            for lab, a_, b_, nav_, ann_ in val_rows]},
+    "reproducibility": {"data_sha256_16": data_sha, "versions": versions, "seed": RNG_SEED},
+}
+with open("report/analysis_results.json", "w") as f:
+    json.dump(export, f, separators=(",", ":"))
+
+# --------------------------------------------------------------------------
 # Charts (vector PDF, serif font matching the Times text of the report)
 # --------------------------------------------------------------------------
 FIG_DIR = "report/figures"

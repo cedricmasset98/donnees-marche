@@ -3,253 +3,949 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VT Market Data</title>
-<meta name="description" content="Vanguard Total World Stock ETF (VT): price history since inception, key statistics, full analysis report and downloadable data, updated every weekday.">
+<title>VT Market Dashboard</title>
+<meta name="description" content="VT closed at $155.33 on 30 Oct 2026. Since inception: 8.7% a year with dividends reinvested, 16.5% annualised volatility, maximum drawdown -50.3%. Interactive dashboard, full analysis report and data, updated every weekday.">
+<meta property="og:title" content="Vanguard Total World Stock ETF (VT) – Market dashboard">
+<meta property="og:description" content="VT closed at $155.33 on 30 Oct 2026. Since inception: 8.7% a year with dividends reinvested, 16.5% annualised volatility, maximum drawdown -50.3%. Interactive dashboard, full analysis report and data, updated every weekday.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%232a78d6%27/%3E%3Cpath d=%27M3 11l3-3 2 2 5-5%27 stroke=%27white%27 stroke-width=%271.6%27 fill=%27none%27/%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #fbfbf9; --surface: #ffffff; --ink: #121211; --ink-2: #52514e; --muted: #898781;
-    --line: #e4e3dc; --accent: #2a78d6; --accent-2: #eb6834; --good: #12804f; --bad: #c43c3b;
-    --grid: #ecebe5;
+    --bg: #f7f7f4; --surface: #ffffff; --surface-2: #f1f0eb; --ink: #121211; --ink-2: #4c4b47; --muted: #85847e;
+    --line: #e3e2db; --accent: #2a78d6; --accent-2: #eb6834; --accent-3: #1baf7a; --good: #12804f; --bad: #c43c3b;
+    --grid: #ecebe5; --focus: #2a78d6;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #141413; --surface: #1c1c1a; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8e88;
-      --line: #2f2f2c; --accent: #4b93ea; --accent-2: #e8733f; --good: #3fbf86; --bad: #ec6c6b;
-      --grid: #262624;
+      --bg: #121211; --surface: #1b1b19; --surface-2: #232321; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8e88;
+      --line: #2d2d2a; --accent: #4b93ea; --accent-2: #e8733f; --accent-3: #2fbf8a; --good: #3fbf86; --bad: #ec6c6b;
+      --grid: #252523; --focus: #6aa8f0;
     }
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 16px 64px; }
-  header .eyebrow { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
-  h1 { font-size: clamp(26px, 5vw, 38px); line-height: 1.15; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.01em; }
-  .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
-  .price-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 28px 0 4px; }
-  .price { font-size: clamp(34px, 7vw, 48px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-  .chg { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+         font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  header.top { padding: 32px 0 18px; }
+  .eyebrow { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+  h1 { font-size: clamp(24px, 4.5vw, 34px); line-height: 1.15; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+  .lede { color: var(--ink-2); margin: 0; max-width: 70ch; }
+  .price-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .price { font-size: clamp(30px, 6vw, 42px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .chg { font-weight: 600; font-variant-numeric: tabular-nums; }
   .asof { font-size: 13px; color: var(--muted); }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
-          background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 24px 0 32px; }
-  .kpi { background: var(--surface); padding: 14px 16px; }
-  .kpi .l { font-size: 12.5px; color: var(--muted); margin-bottom: 2px; }
-  .kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 12px; }
-  .controls { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button { appearance: none; border: 0; background: transparent; color: var(--ink-2); font: inherit;
-                font-size: 13.5px; padding: 6px 12px; cursor: pointer; min-height: 34px; }
+
+  .toolbar { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent);
+             backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .toolbar .wrap { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding-top: 10px; padding-bottom: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .seg button { appearance: none; border: 0; background: transparent; color: var(--ink-2); font-size: 13.5px;
+                padding: 6px 11px; cursor: pointer; min-height: 34px; }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin: 0 0 8px; }
-  .legend span { display: inline-flex; align-items: center; gap: 7px; }
-  .sw { width: 16px; height: 0; border-top: 2px solid var(--accent); }
-  .sw.tr { border-top: 2px dashed var(--accent-2); }
-  .chart { position: relative; height: 360px; }
-  @media (max-width: 600px) { .chart { height: 280px; } }
-  .note { font-size: 12.5px; color: var(--muted); margin: 10px 2px 0; }
-  h2 { font-size: 20px; margin: 44px 0 12px; font-weight: 650; }
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-  .dl { list-style: none; margin: 0; padding: 0; }
-  .dl li { display: flex; justify-content: space-between; align-items: center; gap: 12px;
-           padding: 12px 0; border-top: 1px solid var(--line); }
-  .dl li:first-child { border-top: 0; padding-top: 2px; }
-  .dl .t { font-weight: 550; }
-  .dl .d { font-size: 13px; color: var(--muted); }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .btn { display: inline-block; font-size: 13.5px; font-weight: 550; border: 1px solid var(--line);
-         border-radius: 8px; padding: 6px 12px; white-space: nowrap; color: var(--ink); }
-  .btn:hover { border-color: var(--muted); text-decoration: none; }
-  .report { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
-  .report p { margin: 0; color: var(--ink-2); font-size: 15px; }
-  .report ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
-  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .dates { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .dates input { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; min-height: 34px; font-size: 13.5px; }
+  .spacer { flex: 1; }
+  @media (max-width: 600px) { .toolbar { position: static; } .dates input { font-size: 13px; padding: 4px 6px; } }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line);
+          border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 18px 0 6px; }
+  @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .kpi { background: var(--surface); padding: 12px 14px; min-width: 0; }
+  .kpi .l { font-size: 12.5px; color: var(--muted); margin-bottom: 2px; }
+  .kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .kpi .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .period-note { font-size: 12.5px; color: var(--muted); margin: 6px 2px 18px; }
+
+  nav.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: 18px;
+             scrollbar-width: none; }
+  nav.tabs::-webkit-scrollbar { display: none; }
+  nav.tabs button { appearance: none; border: 0; background: none; padding: 10px 12px; font-size: 14.5px; color: var(--ink-2);
+                    cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+
+  .panel { display: none; } .panel.active { display: block; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .grid .full { grid-column: 1 / -1; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+  .card h3 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
+  .card .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .chart { width: 100%; height: 320px; }
+  .chart.tall { height: 380px; } .chart.short { height: 240px; }
+  @media (max-width: 600px) { .chart { height: 260px; } .chart.tall { height: 300px; } }
+  .note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+  .text { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { font-weight: 600; color: var(--ink-2); font-size: 12.5px; }
+  tr:last-child td { border-bottom: 0; }
+  .tablewrap { overflow-x: auto; }
+  table.nowrap td, table.nowrap th { white-space: nowrap; }
   .pos { color: var(--good); } .neg { color: var(--bad); }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+  .pill.ok { color: var(--good); } .pill.warn { color: var(--bad); }
+
+  .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  .form input[type=number], .form input[type=date] { border: 1px solid var(--line); background: var(--surface); border-radius: 8px;
+         padding: 6px 8px; min-height: 36px; font-size: 14px; }
+  .check { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--ink-2) !important; font-size: 13.5px !important; }
+  .out { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line);
+         border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .out div { background: var(--surface-2); padding: 10px 12px; }
+  .out .l { font-size: 12px; color: var(--muted); } .out .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .err { color: var(--bad); font-size: 13px; margin-top: 6px; min-height: 1em; }
+
+  .status { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .status .card .v { font-size: 17px; font-weight: 600; margin-top: 2px; word-break: break-word; }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  ul.checks li:last-child { border-bottom: 0; }
+  .dl { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { display: inline-block; font-size: 13.5px; font-weight: 550; border: 1px solid var(--line); background: var(--surface);
+         border-radius: 8px; padding: 7px 12px; color: var(--ink); }
+  .btn:hover { border-color: var(--muted); text-decoration: none; }
+  footer { margin: 40px 0 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .loading { color: var(--muted); font-size: 14px; padding: 24px 0; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <p class="eyebrow">Market data · updated every weekday</p>
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Market dashboard · updated every weekday</p>
     <h1>Vanguard Total World Stock ETF (VT)</h1>
-    <p class="lede">A single fund covering thousands of stocks across developed and emerging markets. Price history since inception, key statistics and a full analysis report, rebuilt automatically from Yahoo Finance data.</p>
+    <p class="lede">One fund holding thousands of stocks across developed and emerging markets. Choose a period and a currency: every figure, chart and tool below is recalculated for that selection.</p>
     <div class="price-row">
-      <span class="price" id="price">–</span>
+      <span class="price" id="price">$155.33</span>
       <span class="chg" id="chg"></span>
-      <span class="asof" id="asof"></span>
-    </div>
-  </header>
-
-  <section class="kpis" aria-label="Key statistics">
-    <div class="kpi"><div class="l">Year to date</div><div class="v" id="k-ytd">–</div></div>
-    <div class="kpi"><div class="l">Last 12 months</div><div class="v" id="k-1y">–</div></div>
-    <div class="kpi"><div class="l">Annualised since inception</div><div class="v" id="k-cagr">–</div></div>
-    <div class="kpi"><div class="l">Annualised volatility</div><div class="v" id="k-vol">–</div></div>
-    <div class="kpi"><div class="l">Maximum drawdown</div><div class="v" id="k-mdd">–</div></div>
-    <div class="kpi"><div class="l">Below all-time high</div><div class="v" id="k-cdd">–</div></div>
-  </section>
-
-  <section class="card" aria-label="Price chart">
-    <div class="controls">
-      <div class="seg" role="group" aria-label="Period" id="range">
-        <button data-y="1" aria-pressed="false">1Y</button>
-        <button data-y="5" aria-pressed="false">5Y</button>
-        <button data-y="10" aria-pressed="false">10Y</button>
-        <button data-y="0" aria-pressed="true">Max</button>
-      </div>
-      <div class="seg" role="group" aria-label="Scale" id="scale">
-        <button data-s="linear" aria-pressed="true">Linear</button>
-        <button data-s="logarithmic" aria-pressed="false">Log</button>
-      </div>
-    </div>
-    <div class="legend">
-      <span><i class="sw"></i>Closing price</span>
-      <span><i class="sw tr"></i>Total return (dividends reinvested)</span>
-    </div>
-    <div class="chart">
-      <canvas id="chart" role="img" aria-label="Line chart of VT closing price and total return since inception"></canvas>
-    </div>
-    <p class="note">Daily data in USD. Total return uses prices adjusted for dividends and splits, so it starts below the closing price and ends at the same level.</p>
-  </section>
-
-  <h2>Analysis and data</h2>
-  <div class="grid2">
-    <div class="card report">
-      <div>
-        <p style="font-weight:600;color:var(--ink);margin-bottom:6px">Full analysis report (PDF, typeset in LaTeX)</p>
-        <ul>
-          <li>Return, volatility by frequency, drawdowns, Sharpe ratios with confidence intervals</li>
-          <li>Fat tails, GARCH(1,1)-t estimates, out-of-sample VaR backtest</li>
-          <li>Market efficiency with multiple-testing correction, moving-average rules with bootstrap</li>
-          <li>Probability of loss, start-date sensitivity, Swiss franc view, validation against Vanguard</li>
-        </ul>
-      </div>
-      <div><a class="btn" href="VT_analysis.pdf">Open the report</a></div>
-    </div>
-    <div class="card">
-      <ul class="dl">
-        <li><div><div class="t">VT daily prices</div><div class="d">Open, high, low, close, adjusted close, volume</div></div><a class="btn" href="data/VT.csv" download>CSV</a></li>
-        <li><div><div class="t">USD/CHF</div><div class="d">Swiss francs per US dollar, daily</div></div><a class="btn" href="data/CHFX.csv" download>CSV</a></li>
-        <li><div><div class="t">13-week US T-bill</div><div class="d">Annualised yield in %, risk-free rate proxy</div></div><a class="btn" href="data/IRX.csv" download>CSV</a></li>
-      </ul>
+      <span class="asof" id="asof">Close of 30 Oct 2026</span>
     </div>
   </div>
+</header>
 
-  <footer>
-    Source: Yahoo Finance via the yfinance library. Data are updated incrementally every weekday evening by a GitHub Actions workflow in
-    <a href="https://github.com/cedricmasset98/donnees-marche">cedricmasset98/donnees-marche</a>.
-    For teaching and research purposes; not investment advice.
-  </footer>
+<div class="toolbar" role="region" aria-label="Dashboard controls">
+  <div class="wrap">
+    <div class="seg" role="group" aria-label="Period" id="presets">
+      <button data-y="1">1Y</button><button data-y="3">3Y</button><button data-y="5">5Y</button>
+      <button data-y="10">10Y</button><button data-y="0" aria-pressed="true">Max</button>
+    </div>
+    <div class="dates">
+      <input type="date" id="d0" aria-label="Start date"> <span>to</span> <input type="date" id="d1" aria-label="End date">
+    </div>
+    <span class="spacer"></span>
+    <div class="seg" role="group" aria-label="Currency" id="ccy">
+      <button data-c="USD" aria-pressed="true">USD</button><button data-c="CHF">CHF</button>
+    </div>
+  </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<main class="wrap">
+  <noscript>
+    <p class="text">VT closed at $155.33 on 30 Oct 2026. Since inception (26 Jun 2008): 8.7% a year with dividends reinvested, 16.5% annualised volatility (monthly returns), Sharpe ratio 0.50, maximum drawdown -50.3%. Enable JavaScript for the interactive dashboard, or open the <a href="VT_analysis.pdf">full report</a>.</p>
+  </noscript>
+
+  <section class="kpis" aria-label="Key figures for the selected period">
+    <div class="kpi"><div class="l">Period return</div><div class="v" id="k-ret">–</div><div class="s" id="k-ret-s">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Annualised return</div><div class="v" id="k-cagr">8.7%</div><div class="s" id="k-cagr-s">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Volatility (annualised)</div><div class="v" id="k-vol">16.5%</div><div class="s" id="k-vol-s">monthly returns</div></div>
+    <div class="kpi"><div class="l" id="k-sh-l">Sharpe ratio</div><div class="v" id="k-sh">0.50</div><div class="s" id="k-sh-s">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Sortino ratio</div><div class="v" id="k-so">–</div><div class="s">downside deviation</div></div>
+    <div class="kpi"><div class="l">Maximum drawdown</div><div class="v" id="k-mdd">-50.3%</div><div class="s" id="k-mdd-s">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Best month</div><div class="v" id="k-bm">–</div><div class="s" id="k-bm-s">&nbsp;</div></div>
+    <div class="kpi"><div class="l">Worst month</div><div class="v" id="k-wm">–</div><div class="s" id="k-wm-s">&nbsp;</div></div>
+  </section>
+  <p class="period-note" id="period-note">Loading data…</p>
+
+  <nav class="tabs" role="tablist" aria-label="Dashboard sections" id="tabs">
+    <button role="tab" data-tab="perf" aria-selected="true">Performance</button>
+    <button role="tab" data-tab="risk" aria-selected="false">Risk</button>
+    <button role="tab" data-tab="dist" aria-selected="false">Distribution &amp; VaR</button>
+    <button role="tab" data-tab="eff" aria-selected="false">Efficiency</button>
+    <button role="tab" data-tab="fx" aria-selected="false">Currency</button>
+    <button role="tab" data-tab="tools" aria-selected="false">Tools</button>
+    <button role="tab" data-tab="data" aria-selected="false">Data &amp; report</button>
+  </nav>
+
+  <!-- ===================================================== Performance -->
+  <section class="panel active" id="panel-perf" role="tabpanel">
+    <div class="grid">
+      <div class="card full">
+        <div class="card-head">
+          <div><h3>Price and total return</h3><p class="sub" id="perf-sub">Drag or pinch to zoom.</p></div>
+          <div class="seg" role="group" aria-label="Scale" id="scale">
+            <button data-s="value" aria-pressed="true">Linear</button><button data-s="log">Log</button>
+          </div>
+        </div>
+        <div class="chart tall" id="c-price"></div>
+      </div>
+      <div class="card full">
+        <h3>Monthly returns</h3><p class="sub">Total return by calendar month; first and last months may be partial.</p>
+        <div class="chart tall" id="c-heat"></div>
+      </div>
+      <div class="card full">
+        <h3>Calendar-year returns</h3><p class="sub">Price and total return. * Partial year within the selected period.</p>
+        <div class="chart" id="c-annual"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Risk -->
+  <section class="panel" id="panel-risk" role="tabpanel">
+    <div class="grid">
+      <div class="card full">
+        <h3>Total return and drawdown</h3><p class="sub">The two charts zoom together. Drawdown: decline from the previous peak within the period.</p>
+        <div class="chart short" id="c-tr"></div>
+        <div class="chart short" id="c-dd"></div>
+      </div>
+      <div class="card">
+        <h3>Volatility</h3><p class="sub" id="vol-sub">One-year rolling volatility of daily returns and GARCH(1,1)-t conditional volatility (daily × √252).</p>
+        <div class="chart" id="c-vol"></div>
+      </div>
+      <div class="card">
+        <h3 id="rs-title">Rolling 3-year Sharpe ratio</h3><p class="sub" id="rs-sub">Monthly excess returns over the 13-week US T-bill.</p>
+        <div class="chart" id="c-rsharpe"></div>
+      </div>
+      <div class="card full">
+        <h3>Largest drawdowns in the period</h3>
+        <div class="tablewrap"><table id="t-dd" class="nowrap"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Distribution -->
+  <section class="panel" id="panel-dist" role="tabpanel">
+    <div class="grid">
+      <div class="card">
+        <h3>Distribution of daily returns</h3><p class="sub">Histogram against a normal density with the same mean and standard deviation.</p>
+        <div class="chart" id="c-hist"></div>
+      </div>
+      <div class="card">
+        <h3>Statistics and one-day risk</h3><p class="sub">Daily returns in the selected period and currency.</p>
+        <div class="tablewrap"><table id="t-dist"></table></div>
+      </div>
+      <div class="card full">
+        <h3>Value at Risk: out-of-sample backtest</h3>
+        <p class="sub">One-day 1% VaR forecast by a GARCH(1,1)-t model re-estimated every year; red points are breaches. USD, log returns.</p>
+        <div class="chart tall" id="c-var"></div>
+        <div class="tablewrap" style="margin-top:10px"><table id="t-bt"></table></div>
+        <p class="note">Full backtest period. Kupiec: unconditional coverage; Christoffersen: independence of breaches; CC: both. p-values below 0.05 reject the model.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Efficiency -->
+  <section class="panel" id="panel-eff" role="tabpanel">
+    <div class="grid">
+      <div class="card">
+        <h3>Rolling first-order autocorrelation</h3><p class="sub">Daily log returns, trailing 3-year windows, with the 95% band of a heteroskedasticity-robust test.</p>
+        <div class="chart" id="c-ac"></div>
+      </div>
+      <div class="card">
+        <h3>Rolling variance ratios</h3><p class="sub">Lo–MacKinlay VR(5) and VR(20), trailing 3-year windows. 1 = random walk.</p>
+        <div class="chart" id="c-vr"></div>
+      </div>
+      <div class="card full">
+        <h3>Full-sample tests</h3><p class="sub">p-values adjusted for multiple testing with the Holm procedure.</p>
+        <div class="tablewrap"><table id="t-eff"></table></div>
+      </div>
+      <div class="card full">
+        <h3>Moving-average timing rules</h3><p class="sub" id="ma-sub"></p>
+        <div class="tablewrap"><table id="t-ma"></table></div>
+        <p class="text" id="ma-text"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Currency -->
+  <section class="panel" id="panel-fx" role="tabpanel">
+    <div class="grid">
+      <div class="card full">
+        <h3>VT in USD and in CHF</h3><p class="sub">Total return rebased to 100 at the start of the period, and the USD/CHF exchange rate (CHF per USD).</p>
+        <div class="chart tall" id="c-fx"></div>
+      </div>
+      <div class="card">
+        <h3>Rolling correlation with USD/CHF</h3><p class="sub">Weekly returns, trailing 52 weeks. Negative: the dollar tends to rise when VT falls.</p>
+        <div class="chart" id="c-fxcorr"></div>
+      </div>
+      <div class="card">
+        <h3>Currency contribution</h3><p class="sub">Selected period, total return.</p>
+        <div class="tablewrap"><table id="t-fx"></table></div>
+        <p class="note">Before taxes. Dividends from VT are subject to a 15% US withholding tax for Swiss residents, usually creditable against Swiss tax.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Tools -->
+  <section class="panel" id="panel-tools" role="tabpanel">
+    <div class="grid">
+      <div class="card">
+        <h3>Buy and sell simulator</h3><p class="sub">What a single investment would have become, in the selected currency.</p>
+        <div class="form">
+          <label>Amount<input type="number" id="s-amt" value="10000" min="1" step="100"></label>
+          <label>Buy on<input type="date" id="s-buy"></label>
+          <label>Sell on<input type="date" id="s-sell"></label>
+          <label class="check"><input type="checkbox" id="s-div" checked> Reinvest dividends</label>
+        </div>
+        <div class="out" id="s-out"></div>
+        <div class="err" id="s-err"></div>
+      </div>
+      <div class="card">
+        <h3>Monthly savings plan</h3><p class="sub">A fixed amount invested at each month end, dividends reinvested.</p>
+        <div class="form">
+          <label>Monthly amount<input type="number" id="p-amt" value="500" min="1" step="50"></label>
+          <label>Start<input type="date" id="p-start"></label>
+          <label>End<input type="date" id="p-end"></label>
+        </div>
+        <div class="out" id="p-out"></div>
+        <div class="err" id="p-err"></div>
+        <div class="chart short" id="c-plan" style="margin-top:10px"></div>
+      </div>
+      <div class="card full">
+        <h3>The best and the worst days</h3><p class="sub">Final value of 10,000 invested over the selected period when the N best and/or N worst days are removed.</p>
+        <label class="note" for="b-n">Number of days removed: <strong id="b-nv">10</strong></label>
+        <input type="range" id="b-n" min="0" max="50" step="1" value="10">
+        <div class="chart short" id="c-best"></div>
+        <p class="text" id="b-text"></p>
+      </div>
+      <div class="card full">
+        <h3>Probability of loss by holding period</h3><p class="sub">Full history, USD, total return.</p>
+        <div class="tablewrap"><table id="t-ploss" class="nowrap"></table></div>
+        <p class="note">Historical windows overlap and understate the risk at long horizons; the stationary bootstrap resamples blocks of monthly returns (mean length 12 months).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== Data -->
+  <section class="panel" id="panel-data" role="tabpanel">
+    <div class="status" id="status"></div>
+    <div class="grid" style="margin-top:16px">
+      <div class="card">
+        <h3>Validation against Vanguard</h3><p class="sub" id="val-sub"></p>
+        <div class="tablewrap"><table id="t-val"></table></div>
+      </div>
+      <div class="card">
+        <h3>Data-quality checks</h3><p class="sub">Run on every update.</p>
+        <ul class="checks" id="q-list"></ul>
+      </div>
+      <div class="card full">
+        <h3>Report and downloads</h3>
+        <p class="text">The full analysis report (LaTeX, about 16 pages) covers return and risk, GARCH estimates, the VaR backtest, market-efficiency tests with multiple-testing correction, timing rules, the probability of loss, the Swiss franc view and data validation.</p>
+        <div class="dl" style="margin-top:12px">
+          <a class="btn" href="VT_analysis.pdf">Analysis report (PDF)</a>
+          <a class="btn" href="data/VT.csv" download>VT daily prices (CSV)</a>
+          <a class="btn" href="data/CHFX.csv" download>USD/CHF (CSV)</a>
+          <a class="btn" href="data/IRX.csv" download>13-week T-bill (CSV)</a>
+          <a class="btn" href="https://github.com/cedricmasset98/donnees-marche">Source code on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Built by Cédric Masset for teaching and research. Source: Yahoo Finance via the yfinance library, validated against
+    Vanguard's published returns; updated incrementally every weekday evening by GitHub Actions. Yahoo data are provided for
+    educational use only. Charts: Apache ECharts. Not investment advice.
+  </footer>
+</main>
+
+<script src="vendor/echarts.min.js"></script>
 <script>
 (function () {
-  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const pct = (x, d = 1, s = false) => x == null ? "–" : (s && x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%";
-  const fmtDate = s => new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  const set = (id, v, cls) => { const el = document.getElementById(id); el.textContent = v; if (cls) el.className = (el.className + " " + cls).trim(); };
+"use strict";
+/* ------------------------------------------------------------------ helpers */
+const $ = id => document.getElementById(id);
+const DAY = 864e5, YEAR = 365.25 * DAY;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmtPct = (x, d = 1, sign = false) => (x == null || !isFinite(x)) ? "–" :
+  (sign && x > 0 ? "+" : "") + (x * 100).toFixed(d).replace("-", "−") + "%";
+const fmtNum = (x, d = 2) => (x == null || !isFinite(x)) ? "–" : x.toFixed(d).replace("-", "−");
+const fmtMoney = x => (x == null || !isFinite(x)) ? "–" : Math.round(x).toLocaleString("en-US");
+const fmtDate = t => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const fmtMonth = t => new Date(t).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+const iso = t => new Date(t).toISOString().slice(0, 10);
+const cls = (el, x) => { el.classList.remove("pos", "neg"); if (x > 0) el.classList.add("pos"); else if (x < 0) el.classList.add("neg"); };
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+const sd = a => { const m = mean(a); return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / (a.length - 1)); };
+function moments(a) {            // population moments (as scipy.stats skew / kurtosis with bias=True)
+  const m = mean(a); let m2 = 0, m3 = 0, m4 = 0;
+  for (const x of a) { const d = x - m; m2 += d * d; m3 += d ** 3; m4 += d ** 4; }
+  m2 /= a.length; m3 /= a.length; m4 /= a.length;
+  return { skew: m3 / m2 ** 1.5, kurt: m4 / m2 ** 2 };
+}
+function quantile(sorted, p) {   // linear interpolation, as numpy default
+  const h = (sorted.length - 1) * p, lo = Math.floor(h), hi = Math.ceil(h);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (h - lo);
+}
+const normPpf = p => {           // Acklam's approximation
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239],
+        b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155922981],
+        c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783],
+        d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const pl = 0.02425;
+  if (p < pl) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p > 1 - pl) return -normPpf(1 - p);
+  const q = p - 0.5, r = q * q;
+  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+};
+const normPdf = x => Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
 
-  fetch("summary.json").then(r => r.json()).then(s => {
-    set("price", "$" + s.price.toFixed(2));
-    set("chg", pct(s.day_change, 2, true), s.day_change >= 0 ? "pos" : "neg");
-    set("asof", "Close of " + fmtDate(s.updated));
-    set("k-ytd", pct(s.ytd, 1, true), s.ytd >= 0 ? "pos" : "neg");
-    set("k-1y", pct(s.one_year, 1, true), s.one_year >= 0 ? "pos" : "neg");
-    set("k-cagr", pct(s.cagr_tr));
-    set("k-vol", pct(s.vol));
-    set("k-mdd", pct(s.max_dd));
-    set("k-cdd", s.current_dd > -0.0005 ? "At the high" : pct(s.current_dd));
-  }).catch(() => {});
+/* ------------------------------------------------------------------ state */
+let D, T, C, A, FX, RF, N, AN;
+const state = { i0: 0, i1: 0, ccy: "USD", tab: "perf", scale: "value" };
+const charts = {};
+let theme;
 
-  let chart, dates = [], close = [], adj = [];
+function readTheme() {
+  theme = { ink: css("--ink"), ink2: css("--ink-2"), muted: css("--muted"), grid: css("--grid"), line: css("--line"),
+            surface: css("--surface"), accent: css("--accent"), accent2: css("--accent-2"), accent3: css("--accent-3"),
+            good: css("--good"), bad: css("--bad") };
+}
+function base(extra = {}) {
+  return Object.assign({
+    animation: false,
+    textStyle: { fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Inter, Roboto, sans-serif", color: theme.ink2 },
+    grid: { left: 52, right: 16, top: 30, bottom: 30, containLabel: false },
+    tooltip: { trigger: "axis", backgroundColor: theme.surface, borderColor: theme.line, textStyle: { color: theme.ink, fontSize: 12 },
+               confine: true },
+    legend: { top: 0, left: 0, textStyle: { color: theme.ink2, fontSize: 12 }, itemWidth: 16, itemHeight: 8 },
+  }, extra);
+}
+const timeAxis = (extra = {}) => Object.assign({ type: "time", axisLine: { lineStyle: { color: theme.line } },
+  axisLabel: { color: theme.muted, hideOverlap: true }, splitLine: { show: false } }, extra);
+const valAxis = (extra = {}) => Object.assign({ type: "value", scale: true, axisLabel: { color: theme.muted },
+  splitLine: { lineStyle: { color: theme.grid } } }, extra);
+const pctLabel = d => v => (v * 100).toFixed(d) + "%";
 
-  function draw(years, scale) {
-    let start = 0;
-    if (years > 0) {
-      const cut = dates[dates.length - 1] - years * 365.25 * 864e5;
-      start = dates.findIndex(t => t >= cut);
-    }
-    const pts = (arr) => arr.slice(start).map((y, i) => ({ x: dates[start + i], y }));
-    const spanYears = (dates[dates.length - 1] - dates[start]) / (365.25 * 864e5);
-    chart.data.datasets[0].data = pts(close);
-    chart.data.datasets[1].data = pts(adj);
-    chart.options.scales.y.type = scale;
-    chart.options.scales.x.min = dates[start];
-    chart.options.scales.x._span = spanYears;
-    chart.update("none");
+function getChart(id) {
+  if (!charts[id]) charts[id] = echarts.init($(id), null, { renderer: "canvas" });
+  return charts[id];
+}
+
+/* ------------------------------------------------------------------ series in the selected currency */
+const fxm = i => state.ccy === "CHF" ? FX[i] : 1;
+const vA = i => A[i] * fxm(i);
+const vC = i => C[i] * fxm(i);
+
+function monthEnds(i0, i1) {     // indices of the last trading day of each month in [i0, i1]
+  const out = [];
+  for (let i = i0; i <= i1; i++) {
+    const d = new Date(T[i]), n = i < i1 ? new Date(T[i + 1]) : null;
+    if (!n || n.getUTCMonth() !== d.getUTCMonth()) out.push(i);
   }
+  return out;
+}
+function monthly(i0, i1) {       // monthly total returns and risk-free returns in the period
+  const ends = monthEnds(i0, i1);
+  const rets = [], rfs = [], dates = [];
+  let prev = i0;
+  for (const e of ends) {
+    if (e === i0) continue;
+    rets.push(vA(e) / vA(prev) - 1);
+    let g = 1; for (let i = prev + 1; i <= e; i++) g *= 1 + RF[i] / 252;
+    rfs.push(state.ccy === "USD" ? g - 1 : 0);
+    dates.push(T[e]); prev = e;
+  }
+  return { rets, rfs, dates, ends };
+}
+function sharpeStats(ex) {       // Mertens (2002) / Opdyke (2007) standard error, annualised
+  const T_ = ex.length, sr = mean(ex) / sd(ex), mo = moments(ex);
+  const se = Math.sqrt((1 + 0.5 * sr * sr - mo.skew * sr + (mo.kurt - 3) / 4 * sr * sr) / T_);
+  const k = Math.sqrt(12);
+  return { sr: sr * k, lo: (sr - 1.96 * se) * k, hi: (sr + 1.96 * se) * k };
+}
 
-  fetch("data/VT.csv").then(r => r.text()).then(txt => {
-    const rows = txt.trim().split("\n");
-    const h = rows[0].split(",");
-    const iD = h.indexOf("Date"), iC = h.indexOf("Close"), iA = h.indexOf("Adj Close");
-    for (const line of rows.slice(1)) {
-      const c = line.split(",");
-      dates.push(Date.parse(c[iD] + "T00:00:00Z"));
-      close.push(+(+c[iC]).toFixed(2));
-      adj.push(+(+c[iA]).toFixed(2));
-    }
-    const grid = css("--grid"), muted = css("--muted");
-    chart = new Chart(document.getElementById("chart"), {
-      type: "line",
-      data: { datasets: [
-        { label: "Closing price", data: [], borderColor: css("--accent"), borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 3 },
-        { label: "Total return", data: [], borderColor: css("--accent-2"), borderWidth: 1.6, borderDash: [5, 3], pointRadius: 0, pointHoverRadius: 3 }
-      ]},
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { display: false },
-          decimation: { enabled: true, algorithm: "lttb", samples: 900 },
-          tooltip: { callbacks: {
-            title: items => new Date(items[0].parsed.x).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
-            label: c => " " + c.dataset.label + ": $" + c.parsed.y.toFixed(2)
-          }}
-        },
-        scales: {
-          x: { type: "linear", grid: { display: false }, border: { color: grid },
-               afterBuildTicks: axis => {
-                 const span = axis.chart.options.scales.x._span || 20, t = [];
-                 const a = new Date(axis.min), b = new Date(axis.max);
-                 if (span <= 2) {
-                   const step = span <= 1.2 ? 2 : 3;
-                   let d = Date.UTC(a.getUTCFullYear(), a.getUTCMonth() + 1, 1);
-                   while (d <= axis.max) { const m = new Date(d).getUTCMonth(); if (m % step === 0) t.push({ value: d });
-                     d = Date.UTC(new Date(d).getUTCFullYear(), new Date(d).getUTCMonth() + 1, 1); }
-                 } else {
-                   const step = (span > 12 || (span > 6 && axis.chart.width < 500)) ? 2 : 1;
-                   for (let y = a.getUTCFullYear() + 1; y <= b.getUTCFullYear(); y++) if (y % step === 0) t.push({ value: Date.UTC(y, 0, 1) });
-                 }
-                 axis.ticks = t;
-               },
-               ticks: { color: muted, maxRotation: 0, autoSkip: false,
-                 callback: function (v) {
-                   const d = new Date(v), span = this.chart.options.scales.x._span || 20;
-                   return span <= 2 ? d.toLocaleDateString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" })
-                                    : d.getUTCFullYear();
-                 } } },
-          y: { type: "linear", grid: { color: grid }, border: { display: false },
-               ticks: { color: muted, callback: v => "$" + Math.round(v) } }
-        }
-      }
-    });
-    chart.options.scales.x.max = dates[dates.length - 1];
-    draw(0, "linear");
+/* ------------------------------------------------------------------ KPIs */
+function renderKPIs() {
+  const { i0, i1 } = state;
+  const pr = vA(i1) / vA(i0) - 1, yrs = (T[i1] - T[i0]) / YEAR;
+  $("k-ret").textContent = fmtPct(pr, 1, true); cls($("k-ret"), pr);
+  $("k-ret-s").textContent = `${fmtDate(T[i0])} – ${fmtDate(T[i1])}`;
+  if (yrs >= 0.99) { const c = Math.pow(1 + pr, 1 / yrs) - 1; $("k-cagr").textContent = fmtPct(c, 1); $("k-cagr-s").textContent = `${yrs.toFixed(1)} years, total return`; }
+  else { $("k-cagr").textContent = "–"; $("k-cagr-s").textContent = "period under one year"; }
 
-    const state = { y: 0, s: "linear" };
-    document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
-      document.querySelectorAll("#range button").forEach(x => x.setAttribute("aria-pressed", x === b));
-      state.y = +b.dataset.y; draw(state.y, state.s);
-    }));
-    document.querySelectorAll("#scale button").forEach(b => b.addEventListener("click", () => {
-      document.querySelectorAll("#scale button").forEach(x => x.setAttribute("aria-pressed", x === b));
-      state.s = b.dataset.s; draw(state.y, state.s);
-    }));
-  });
+  const m = monthly(i0, i1);
+  if (m.rets.length >= 12) {
+    $("k-vol").textContent = fmtPct(sd(m.rets) * Math.sqrt(12)); $("k-vol-s").textContent = `${m.rets.length} monthly returns`;
+    const ex = m.rets.map((r, j) => r - m.rfs[j]);
+    const s = sharpeStats(ex);
+    $("k-sh-l").textContent = state.ccy === "USD" ? "Sharpe ratio" : "Return / risk (CHF)";
+    $("k-sh").textContent = fmtNum(s.sr); $("k-sh-s").textContent = `95% CI ${fmtNum(s.lo)} to ${fmtNum(s.hi)}`;
+    const down = Math.sqrt(mean(ex.map(x => Math.min(x, 0) ** 2))) * Math.sqrt(12);
+    $("k-so").textContent = fmtNum(mean(ex) * 12 / down);
+  } else {
+    const d = [];
+    for (let i = i0 + 1; i <= i1; i++) d.push(vA(i) / vA(i - 1) - 1);
+    $("k-vol").textContent = fmtPct(sd(d) * Math.sqrt(252)); $("k-vol-s").textContent = "daily × √252 (period < 12 months)";
+    $("k-sh").textContent = "–"; $("k-sh-s").textContent = "needs 12 months"; $("k-so").textContent = "–";
+  }
+  let peak = vA(i0), mdd = 0, tPeak = T[i0], tTr = T[i0];
+  for (let i = i0; i <= i1; i++) { const v = vA(i); if (v > peak) { peak = v; } const dd = v / peak - 1; if (dd < mdd) { mdd = dd; tTr = T[i]; } }
+  $("k-mdd").textContent = fmtPct(mdd); $("k-mdd-s").textContent = mdd < 0 ? `trough ${fmtDate(tTr)}` : "no decline";
+  if (m.rets.length) {
+    let b = 0, w = 0; m.rets.forEach((r, j) => { if (r > m.rets[b]) b = j; if (r < m.rets[w]) w = j; });
+    $("k-bm").textContent = fmtPct(m.rets[b], 1, true); $("k-bm-s").textContent = fmtMonth(m.dates[b]); cls($("k-bm"), m.rets[b]);
+    $("k-wm").textContent = fmtPct(m.rets[w], 1, true); $("k-wm-s").textContent = fmtMonth(m.dates[w]); cls($("k-wm"), m.rets[w]);
+  }
+  $("period-note").textContent = `Selected period: ${fmtDate(T[i0])} – ${fmtDate(T[i1])} · ${state.ccy} · total return with dividends reinvested` +
+    (state.ccy === "CHF" ? " · CHF figures have no risk-free rate deducted" : " · risk-free rate: 13-week US T-bill");
+  // header price
+  const last = N - 1, p = vC(last), ch = vC(last) / vC(last - 1) - 1;
+  $("price").textContent = (state.ccy === "USD" ? "$" : "CHF ") + p.toFixed(2);
+  $("chg").textContent = fmtPct(ch, 2, true); cls($("chg"), ch);
+  $("asof").textContent = "Close of " + fmtDate(T[last]) + (state.ccy === "CHF" ? " · converted at USD/CHF " + FX[last].toFixed(4) : "");
+}
+
+/* ------------------------------------------------------------------ Performance */
+function renderPerf() {
+  const { i0, i1 } = state, tr = [], pr = [];
+  for (let i = i0; i <= i1; i++) { tr.push([T[i], +vA(i).toFixed(3)]); pr.push([T[i], +vC(i).toFixed(3)]); }
+  const unit = state.ccy === "USD" ? "USD" : "CHF";
+  $("perf-sub").textContent = `${unit}. Total return uses prices adjusted for dividends and splits. Drag or pinch to zoom.`;
+  getChart("c-price").setOption(base({
+    legend: { top: 0, left: 0, textStyle: { color: theme.ink2 } },
+    grid: { left: 52, right: 16, top: 30, bottom: 60 },
+    xAxis: timeAxis(), yAxis: valAxis({ type: state.scale, axisLabel: { color: theme.muted } }),
+    dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 8, borderColor: theme.line, textStyle: { color: theme.muted } }],
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => v.toFixed(2) + " " + unit }),
+    series: [
+      { name: "Closing price", type: "line", data: pr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "Total return", type: "line", data: tr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, type: [5, 3], color: theme.accent2 }, itemStyle: { color: theme.accent2 } },
+    ],
+  }), true);
+
+  // heatmap of monthly returns
+  const m = monthly(i0, i1);
+  const years = [...new Set(m.dates.map(t => new Date(t).getUTCFullYear()))];
+  const data = m.dates.map((t, j) => { const d = new Date(t); return [d.getUTCMonth(), years.indexOf(d.getUTCFullYear()), +m.rets[j].toFixed(4)]; });
+  const small = $("c-heat").clientWidth < 560;
+  $("c-heat").style.height = Math.max(220, 40 + years.length * (small ? 20 : 24)) + "px";
+  getChart("c-heat").resize();
+  getChart("c-heat").setOption(base({
+    tooltip: { trigger: "item", backgroundColor: theme.surface, borderColor: theme.line, textStyle: { color: theme.ink, fontSize: 12 },
+               formatter: p => `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p.value[0]]} ${years[p.value[1]]}: ${fmtPct(p.value[2], 2, true)}` },
+    grid: { left: 44, right: 8, top: 8, bottom: 26 },
+    xAxis: { type: "category", data: ["J","F","M","A","M","J","J","A","S","O","N","D"], axisLabel: { color: theme.muted }, axisLine: { show: false }, axisTick: { show: false }, splitArea: { show: false } },
+    yAxis: { type: "category", data: years, inverse: true, axisLabel: { color: theme.muted }, axisLine: { show: false }, axisTick: { show: false } },
+    visualMap: { show: false, min: -0.08, max: 0.08, inRange: { color: [theme.bad, theme.surface, theme.accent] } },
+    series: [{ type: "heatmap", data, itemStyle: { borderColor: theme.surface, borderWidth: 2, borderRadius: 3 },
+               label: { show: !small || years.length < 8, formatter: p => (p.value[2] * 100).toFixed(1), fontSize: small ? 8 : 10, color: theme.ink } }],
+  }), true);
+
+  // calendar years
+  const yrsMap = new Map();
+  for (let i = i0; i <= i1; i++) { const y = new Date(T[i]).getUTCFullYear(); if (!yrsMap.has(y)) yrsMap.set(y, [i, i]); yrsMap.get(y)[1] = i; }
+  const cats = [], ytr = [], ypx = [];
+  let prevEnd = null;
+  for (const [y, [a, b]] of yrsMap) {
+    const startIdx = prevEnd === null ? a : prevEnd;
+    const partial = (prevEnd === null && (new Date(T[a]).getUTCMonth() > 0 || new Date(T[a]).getUTCDate() > 7)) ||
+                    (b === i1 && (new Date(T[b]).getUTCMonth() < 11 || new Date(T[b]).getUTCDate() < 24));
+    cats.push(y + (partial ? "*" : ""));
+    ytr.push(+(vA(b) / vA(startIdx) - 1).toFixed(4)); ypx.push(+(vC(b) / vC(startIdx) - 1).toFixed(4));
+    prevEnd = b;
+  }
+  getChart("c-annual").setOption(base({
+    grid: { left: 52, right: 12, top: 30, bottom: 40 },
+    xAxis: { type: "category", data: cats, axisLabel: { color: theme.muted, rotate: cats.length > 12 ? 45 : 0 }, axisLine: { lineStyle: { color: theme.line } } },
+    yAxis: valAxis({ axisLabel: { color: theme.muted, formatter: pctLabel(0) } }),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtPct(v, 1, true) }),
+    series: [
+      { name: "Price", type: "bar", data: ypx, itemStyle: { color: theme.accent, borderRadius: [3, 3, 0, 0] }, barGap: "10%" },
+      { name: "Total return", type: "bar", data: ytr, itemStyle: { color: theme.accent2, borderRadius: [3, 3, 0, 0] } },
+    ],
+  }), true);
+}
+
+/* ------------------------------------------------------------------ Risk */
+let rollVolCache = {};
+function rollingVol(ccy) {
+  if (rollVolCache[ccy]) return rollVolCache[ccy];
+  const out = new Array(N).fill(null), r = new Array(N).fill(0);
+  for (let i = 1; i < N; i++) r[i] = (A[i] * (ccy === "CHF" ? FX[i] : 1)) / (A[i - 1] * (ccy === "CHF" ? FX[i - 1] : 1)) - 1;
+  let s = 0, s2 = 0;
+  for (let i = 1; i < N; i++) {
+    s += r[i]; s2 += r[i] * r[i];
+    if (i > 252) { s -= r[i - 252]; s2 -= r[i - 252] ** 2; }
+    if (i >= 252) { const m = s / 252; out[i] = Math.sqrt(Math.max(0, (s2 - 252 * m * m) / 251) * 252); }
+  }
+  return (rollVolCache[ccy] = out);
+}
+function renderRisk() {
+  const { i0, i1 } = state, trd = [], ddd = [], vol = rollingVol(state.ccy), vold = [];
+  let peak = -Infinity;
+  for (let i = i0; i <= i1; i++) {
+    const v = vA(i); peak = Math.max(peak, v);
+    trd.push([T[i], +v.toFixed(3)]); ddd.push([T[i], +(v / peak - 1).toFixed(4)]);
+    if (vol[i] != null) vold.push([T[i], +vol[i].toFixed(4)]);
+  }
+  const zoom = [{ type: "inside", xAxisIndex: 0 }];
+  const ctr = getChart("c-tr"), cdd = getChart("c-dd");
+  ctr.group = "risk"; cdd.group = "risk"; echarts.connect("risk");
+  ctr.setOption(base({ legend: { show: false }, grid: { left: 52, right: 16, top: 12, bottom: 18 },
+    xAxis: timeAxis({ axisLabel: { show: false } }), yAxis: valAxis({ type: state.scale }), dataZoom: zoom,
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => v.toFixed(2) + " " + state.ccy }),
+    series: [{ name: "Total return", type: "line", data: trd, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.5, color: theme.accent }, itemStyle: { color: theme.accent } }] }), true);
+  cdd.setOption(base({ legend: { show: false }, grid: { left: 52, right: 16, top: 8, bottom: 52 },
+    xAxis: timeAxis(), yAxis: valAxis({ max: 0, axisLabel: { color: theme.muted, formatter: pctLabel(0) } }),
+    dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 6, borderColor: theme.line, textStyle: { color: theme.muted } }],
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtPct(v, 1) }),
+    series: [{ name: "Drawdown", type: "line", data: ddd, showSymbol: false, sampling: "lttb", lineStyle: { width: 1, color: theme.bad }, itemStyle: { color: theme.bad },
+               areaStyle: { color: theme.bad, opacity: 0.15 } }] }), true);
+
+  // volatility: rolling + GARCH (USD only)
+  const g = D.analysis.garch, gser = [];
+  if (state.ccy === "USD") for (let j = 0; j < g.dates.length; j++) { const t = Date.parse(g.dates[j] + "T00:00:00Z"); if (t >= T[i0] && t <= T[i1]) gser.push([t, g.vol[j]]); }
+  $("vol-sub").textContent = state.ccy === "USD"
+    ? "One-year rolling volatility of daily returns and GARCH(1,1)-t conditional volatility (daily × √252)."
+    : "One-year rolling volatility of daily CHF returns (daily × √252). The GARCH model is estimated in USD only.";
+  getChart("c-vol").setOption(base({ grid: { left: 46, right: 12, top: 30, bottom: 28 },
+    xAxis: timeAxis(), yAxis: valAxis({ min: 0, axisLabel: { color: theme.muted, formatter: pctLabel(0) } }),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtPct(v, 1) }),
+    series: [
+      ...(gser.length ? [{ name: "GARCH conditional", type: "line", data: gser, showSymbol: false, sampling: "lttb", lineStyle: { width: 0.8, color: theme.accent2, opacity: 0.85 }, itemStyle: { color: theme.accent2 } }] : []),
+      { name: "1-year rolling", type: "line", data: vold, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+    ] }), true);
+
+  // rolling 36-month Sharpe on the full history, shown in the period
+  const all = monthly(0, N - 1), rs = [];
+  for (let j = 35; j < all.rets.length; j++) {
+    const ex = []; for (let k = j - 35; k <= j; k++) ex.push(all.rets[k] - all.rfs[k]);
+    if (all.dates[j] >= T[i0] && all.dates[j] <= T[i1]) rs.push([all.dates[j], +(mean(ex) / sd(ex) * Math.sqrt(12)).toFixed(3)]);
+  }
+  $("rs-title").textContent = state.ccy === "USD" ? "Rolling 3-year Sharpe ratio" : "Rolling 3-year return / risk (CHF)";
+  $("rs-sub").textContent = state.ccy === "USD" ? "Monthly excess returns over the 13-week US T-bill, trailing 36 months." : "Monthly CHF returns, no risk-free rate deducted, trailing 36 months.";
+  getChart("c-rsharpe").setOption(base({ legend: { show: false }, grid: { left: 40, right: 12, top: 16, bottom: 28 },
+    xAxis: timeAxis(), yAxis: valAxis(), tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtNum(v) }),
+    series: [{ name: "3-year ratio", type: "line", data: rs, showSymbol: false, lineStyle: { width: 1.6, color: theme.accent3 }, itemStyle: { color: theme.accent3 },
+               markLine: { silent: true, symbol: "none", lineStyle: { color: theme.muted, type: "dashed" }, data: [{ yAxis: 0 }], label: { show: false } } }] }), true);
+
+  // drawdown episodes in the period
+  const eps = []; let pk = i0, inDd = false, start = i0, trough = i0;
+  for (let i = i0; i <= i1; i++) {
+    if (vA(i) >= vA(pk)) { if (inDd) { eps.push([start, trough, i]); inDd = false; } pk = i; }
+    else { if (!inDd) { inDd = true; start = pk; trough = i; } if (vA(i) < vA(trough)) trough = i; }
+  }
+  if (inDd) eps.push([start, trough, null]);
+  eps.sort((a, b) => (vA(a[1]) / vA(a[0])) - (vA(b[1]) / vA(b[0])));
+  const rows = eps.slice(0, 5).map(([s, t, e]) => `<tr><td>${fmtDate(T[s])}</td><td>${fmtDate(T[t])}</td><td>${e == null ? "not yet" : fmtDate(T[e])}</td>` +
+    `<td class="neg">${fmtPct(vA(t) / vA(s) - 1)}</td><td>${t - s}</td><td>${e == null ? "–" : e - t}</td></tr>`).join("");
+  $("t-dd").innerHTML = `<tr><th>Peak</th><th>Trough</th><th>Recovery</th><th>Drawdown</th><th>Decline (days)</th><th>Recovery (days)</th></tr>` +
+    (rows || `<tr><td colspan="6">No drawdown in the period.</td></tr>`);
+}
+
+/* ------------------------------------------------------------------ Distribution */
+function renderDist() {
+  const { i0, i1 } = state, r = [];
+  for (let i = i0 + 1; i <= i1; i++) r.push(vA(i) / vA(i - 1) - 1);
+  const m = mean(r), s = sd(r), mo = moments(r), sorted = [...r].sort((a, b) => a - b);
+  const lim = Math.min(0.08, Math.max(0.03, Math.ceil(Math.max(Math.abs(quantile(sorted, 0.001)), Math.abs(quantile(sorted, 0.999))) * 200) / 200));
+  const nb = 80, w = 2 * lim / nb, bins = new Array(nb).fill(0);
+  for (const x of r) { const k = Math.floor((x + lim) / w); if (k >= 0 && k < nb) bins[k]++; }
+  const hist = bins.map((c, k) => [-lim + (k + 0.5) * w, c / (r.length * w)]);
+  const pdf = []; for (let k = 0; k <= 200; k++) { const x = -lim + 2 * lim * k / 200; pdf.push([x, normPdf((x - m) / s) / s]); }
+  getChart("c-hist").setOption(base({ grid: { left: 16, right: 12, top: 30, bottom: 28 },
+    xAxis: { type: "value", min: -lim, max: lim, axisLabel: { color: theme.muted, formatter: pctLabel(0) }, splitLine: { show: false } },
+    yAxis: { type: "value", show: false },
+    tooltip: { show: false },
+    series: [
+      { name: "Observed", type: "bar", data: hist, barWidth: "95%", itemStyle: { color: theme.accent, opacity: 0.75 } },
+      { name: "Normal", type: "line", data: pdf, showSymbol: false, smooth: true, lineStyle: { color: theme.accent2, width: 1.6, type: [5, 3] }, itemStyle: { color: theme.accent2 } },
+    ] }), true);
+  const tail = p => { const q = quantile(sorted, p); const t = sorted.filter(x => x <= q); return [q, mean(t)]; };
+  const [v95, e95] = tail(0.05), [v99, e99] = tail(0.01);
+  const n95 = m + s * normPpf(0.05), n99 = m + s * normPpf(0.01);
+  const beyond = r.filter(x => Math.abs(x - m) > 4 * s).length, expected = r.length * 2 * 3.167e-5;
+  const row = (l, v, n = "") => `<tr><td>${l}</td><td>${v}</td><td>${n}</td></tr>`;
+  $("t-dist").innerHTML = `<tr><th>Statistic</th><th>Observed</th><th>Normal</th></tr>` +
+    row("Trading days", r.length.toLocaleString("en-US")) +
+    row("Mean / standard deviation", `${fmtPct(m, 3)} / ${fmtPct(s, 2)}`) +
+    row("Skewness", fmtNum(mo.skew), "0") + row("Kurtosis", fmtNum(mo.kurt), "3") +
+    row("Days beyond ±4 standard deviations", beyond, fmtNum(expected, 2)) +
+    row("1-day VaR 95% (historical / normal)", fmtPct(v95, 2), fmtPct(n95, 2)) +
+    row("1-day VaR 99% (historical / normal)", fmtPct(v99, 2), fmtPct(n99, 2)) +
+    row("Expected Shortfall 95% / 99%", `${fmtPct(e95, 2)} / ${fmtPct(e99, 2)}`) +
+    row("Worst / best day", `${fmtPct(sorted[0], 1)} / ${fmtPct(sorted[sorted.length - 1], 1, true)}`);
+
+  // VaR backtest (USD, full period, filtered to the selection)
+  const bt = D.analysis.var_backtest, ret = [], v1 = [], br = [];
+  for (let j = 0; j < bt.dates.length; j++) {
+    const t = Date.parse(bt.dates[j] + "T00:00:00Z"); if (t < T[i0] || t > T[i1]) continue;
+    ret.push([t, bt.ret[j]]); v1.push([t, bt.var1[j]]); if (bt.ret[j] < bt.var1[j]) br.push([t, bt.ret[j]]);
+  }
+  getChart("c-var").setOption(base({ grid: { left: 46, right: 12, top: 30, bottom: 52 },
+    xAxis: timeAxis(), yAxis: valAxis({ axisLabel: { color: theme.muted, formatter: pctLabel(0) } }),
+    dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 6, borderColor: theme.line, textStyle: { color: theme.muted } }],
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtPct(v, 2) }),
+    series: [
+      { name: "Daily return", type: "line", data: ret, showSymbol: false, sampling: "lttb", lineStyle: { width: 0.6, color: theme.muted }, itemStyle: { color: theme.muted } },
+      { name: "1% VaR (GARCH-t)", type: "line", data: v1, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.2, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: `Breaches (${br.length})`, type: "scatter", data: br, symbolSize: 5, itemStyle: { color: theme.bad } },
+    ] }), true);
+  const pv = p => p == null ? "–" : (p < 0.001 ? "< 0.001" : p.toFixed(3));
+  $("t-bt").innerHTML = `<tr><th>Method</th><th>Level</th><th>Breach rate</th><th>Breaches / expected</th><th>Kupiec</th><th>Christoffersen</th><th>CC</th></tr>` +
+    bt.table.map(x => `<tr><td>${x.method}</td><td>${fmtPct(x.level, 0)}</td><td>${fmtPct(x.breach_rate, 2)}</td><td>${x.breaches} / ${Math.round(x.expected)}</td>` +
+      `<td class="${x.p_kupiec < 0.05 ? "neg" : ""}">${pv(x.p_kupiec)}</td><td class="${x.p_christoffersen < 0.05 ? "neg" : ""}">${pv(x.p_christoffersen)}</td><td class="${x.p_cc < 0.05 ? "neg" : ""}">${pv(x.p_cc)}</td></tr>`).join("");
+}
+
+/* ------------------------------------------------------------------ Efficiency */
+function renderEff() {
+  const e = D.analysis.efficiency, ro = e.rolling, { i0, i1 } = state;
+  const inP = d => { const t = Date.parse(d + "T00:00:00Z"); return t >= T[i0] && t <= T[i1]; };
+  const ac = [], up = [], lo = [], v5 = [], v20 = [];
+  ro.dates.forEach((d, j) => { if (!inP(d)) return; const t = Date.parse(d + "T00:00:00Z");
+    ac.push([t, ro.ac1[j]]); up.push([t, +(1.96 * ro.ac1_se[j]).toFixed(4)]); lo.push([t, +(-1.96 * ro.ac1_se[j]).toFixed(4)]);
+    v5.push([t, ro.vr5[j]]); v20.push([t, ro.vr20[j]]); });
+  getChart("c-ac").setOption(base({ grid: { left: 46, right: 12, top: 30, bottom: 28 }, xAxis: timeAxis(), yAxis: valAxis(),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtNum(v, 3) }),
+    series: [
+      { name: "Lag-1 autocorrelation", type: "line", data: ac, showSymbol: false, lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "95% band", type: "line", data: up, showSymbol: false, lineStyle: { width: 1, type: "dashed", color: theme.muted }, itemStyle: { color: theme.muted } },
+      { name: "95% band ", type: "line", data: lo, showSymbol: false, lineStyle: { width: 1, type: "dashed", color: theme.muted }, itemStyle: { color: theme.muted } },
+    ], legend: { top: 0, left: 0, data: ["Lag-1 autocorrelation", "95% band"], textStyle: { color: theme.ink2 } } }), true);
+  getChart("c-vr").setOption(base({ grid: { left: 40, right: 12, top: 30, bottom: 28 }, xAxis: timeAxis(), yAxis: valAxis(),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtNum(v, 3) }),
+    series: [
+      { name: "VR(5)", type: "line", data: v5, showSymbol: false, lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "VR(20)", type: "line", data: v20, showSymbol: false, lineStyle: { width: 1.6, type: [5, 3], color: theme.accent2 }, itemStyle: { color: theme.accent2 },
+        markLine: { silent: true, symbol: "none", lineStyle: { color: theme.muted, type: "dashed" }, data: [{ yAxis: 1 }], label: { show: false } } },
+    ] }), true);
+  const pv = p => p == null ? "–" : (p < 0.001 ? "< 0.001" : p.toFixed(3));
+  $("t-eff").innerHTML = `<tr><th>Test (full sample, USD)</th><th>Statistic</th><th>z</th><th>p-value</th><th>Holm p</th></tr>` +
+    e.tests.map(x => `<tr><td>${x.test}</td><td>${fmtNum(x.stat, 3)}</td><td>${x.z == null ? "–" : fmtNum(x.z, 2)}</td><td>${pv(x.p)}</td>` +
+      `<td class="${x.holm < 0.05 ? "neg" : ""}">${pv(x.holm)}</td></tr>`).join("");
+  $("ma-sub").textContent = `Invested when the previous close is above its moving average, otherwise in T-bills; 0.10% cost per switch. Common period from ${fmtDate(Date.parse(e.ma_start))}, USD.`;
+  $("t-ma").innerHTML = `<tr><th>Rule</th><th>Ann. return</th><th>Volatility</th><th>Sharpe</th><th>Max. drawdown</th><th>Switches</th><th>Invested</th></tr>` +
+    e.ma_sensitivity.map(x => `<tr><td>${typeof x.window === "number" ? x.window + "-day average" : x.window}</td><td>${fmtPct(x.cagr)}</td><td>${fmtPct(x.vol)}</td>` +
+      `<td>${fmtNum(x.sharpe)}</td><td>${fmtPct(x.mdd)}</td><td>${x.switches}</td><td>${fmtPct(x.invested, 0)}</td></tr>`).join("");
+  const b = e.ma_bootstrap;
+  $("ma-text").textContent = `Return gap of buy and hold over the 200-day rule: ${fmtPct(b.gap)} a year, 95% block-bootstrap interval ${fmtPct(b.lo)} to ${fmtPct(b.hi)} (p = ${b.p.toFixed(3)}). The comparison starts after the 2008 crash, which works against timing rules.`;
+}
+
+/* ------------------------------------------------------------------ Currency */
+function renderFx() {
+  const { i0, i1 } = state, usd = [], chf = [], fx = [];
+  for (let i = i0; i <= i1; i++) {
+    usd.push([T[i], +(A[i] / A[i0] * 100).toFixed(2)]);
+    chf.push([T[i], +(A[i] * FX[i] / (A[i0] * FX[i0]) * 100).toFixed(2)]);
+    fx.push([T[i], FX[i]]);
+  }
+  getChart("c-fx").setOption(base({ grid: { left: 46, right: 52, top: 30, bottom: 52 },
+    xAxis: timeAxis(),
+    yAxis: [valAxis({ name: "Index", nameTextStyle: { color: theme.muted } }),
+            { type: "value", scale: true, name: "USD/CHF", nameTextStyle: { color: theme.muted }, axisLabel: { color: theme.muted }, splitLine: { show: false } }],
+    dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 6, borderColor: theme.line, textStyle: { color: theme.muted } }],
+    series: [
+      { name: "VT in USD", type: "line", data: usd, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "VT in CHF", type: "line", data: chf, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, type: [5, 3], color: theme.accent2 }, itemStyle: { color: theme.accent2 } },
+      { name: "USD/CHF (right)", type: "line", yAxisIndex: 1, data: fx, showSymbol: false, sampling: "lttb", lineStyle: { width: 1, color: theme.muted }, itemStyle: { color: theme.muted } },
+    ] }), true);
+  // weekly returns (Friday or last day of the week) and 52-week rolling correlation
+  const wk = []; for (let i = 0; i < N; i++) { const d = new Date(T[i]), n = i < N - 1 ? new Date(T[i + 1]) : null;
+    if (!n || n.getUTCDay() < d.getUTCDay() || (T[i + 1] - T[i]) > 4 * DAY) wk.push(i); }
+  const rv = [], rf = [], tw = [];
+  for (let k = 1; k < wk.length; k++) { rv.push(A[wk[k]] / A[wk[k - 1]] - 1); rf.push(FX[wk[k]] / FX[wk[k - 1]] - 1); tw.push(T[wk[k]]); }
+  const corr = [];
+  for (let k = 51; k < rv.length; k++) {
+    if (tw[k] < T[i0] || tw[k] > T[i1]) continue;
+    const a = rv.slice(k - 51, k + 1), b = rf.slice(k - 51, k + 1), ma = mean(a), mb = mean(b);
+    let sab = 0, saa = 0, sbb = 0; for (let j = 0; j < 52; j++) { sab += (a[j] - ma) * (b[j] - mb); saa += (a[j] - ma) ** 2; sbb += (b[j] - mb) ** 2; }
+    corr.push([tw[k], +(sab / Math.sqrt(saa * sbb)).toFixed(3)]);
+  }
+  getChart("c-fxcorr").setOption(base({ legend: { show: false }, grid: { left: 40, right: 12, top: 16, bottom: 28 },
+    xAxis: timeAxis(), yAxis: valAxis({ min: -1, max: 1 }), tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtNum(v) }),
+    series: [{ name: "52-week correlation", type: "line", data: corr, showSymbol: false, lineStyle: { width: 1.6, color: theme.accent3 }, itemStyle: { color: theme.accent3 },
+      markLine: { silent: true, symbol: "none", lineStyle: { color: theme.muted, type: "dashed" }, data: [{ yAxis: 0 }], label: { show: false } } }] }), true);
+  const yrs = (T[i1] - T[i0]) / YEAR;
+  const ann = x => yrs >= 1 ? Math.pow(1 + x, 1 / yrs) - 1 : null;
+  const ru = A[i1] / A[i0] - 1, rc = A[i1] * FX[i1] / (A[i0] * FX[i0]) - 1, rx = FX[i1] / FX[i0] - 1;
+  const row = (l, a, b) => `<tr><td>${l}</td><td>${a}</td><td>${b}</td></tr>`;
+  $("t-fx").innerHTML = `<tr><th></th><th>Cumulative</th><th>Annualised</th></tr>` +
+    row("VT in USD", fmtPct(ru, 1, true), fmtPct(ann(ru))) + row("USD/CHF", fmtPct(rx, 1, true), fmtPct(ann(rx), 1, true)) +
+    row("VT in CHF", fmtPct(rc, 1, true), fmtPct(ann(rc))) +
+    row("Currency effect on the annual return", "", yrs >= 1 ? fmtPct(ann(rc) - ann(ru), 1, true) : "–");
+}
+
+/* ------------------------------------------------------------------ Tools */
+const idxOnOrAfter = t => { let lo = 0, hi = N - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (T[m] < t) lo = m + 1; else hi = m; } return lo; };
+const idxOnOrBefore = t => { let lo = 0, hi = N - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (T[m] > t) hi = m - 1; else lo = m; } return lo; };
+const dateVal = id => { const v = $(id).value; return v ? Date.parse(v + "T00:00:00Z") : NaN; };
+function renderSim() {
+  const amt = +$("s-amt").value, tb = dateVal("s-buy"), ts = dateVal("s-sell"), div = $("s-div").checked;
+  $("s-err").textContent = ""; $("s-out").innerHTML = "";
+  if (!(amt > 0)) { $("s-err").textContent = "Enter an amount above zero."; return; }
+  if (!isFinite(tb) || !isFinite(ts) || ts <= tb) { $("s-err").textContent = "Choose a sell date after the buy date."; return; }
+  const a = idxOnOrAfter(tb), b = idxOnOrBefore(ts);
+  if (b <= a) { $("s-err").textContent = "No trading days between these dates."; return; }
+  const val = i => (div ? A[i] : C[i]) * fxm(i);
+  const fin = amt * val(b) / val(a), yrs = (T[b] - T[a]) / YEAR, g = fin / amt - 1;
+  $("s-out").innerHTML = `<div><div class="l">Final value (${state.ccy})</div><div class="v">${fmtMoney(fin)}</div></div>` +
+    `<div><div class="l">Gain</div><div class="v ${g >= 0 ? "pos" : "neg"}">${fmtPct(g, 1, true)}</div></div>` +
+    `<div><div class="l">Per year</div><div class="v">${yrs >= 0.99 ? fmtPct(Math.pow(1 + g, 1 / yrs) - 1) : "–"}</div></div>` +
+    `<div><div class="l">Held</div><div class="v">${yrs.toFixed(1)} years</div></div>`;
+}
+function irrAnnual(flows) {      // flows: [t, amount]; bisection on the annual rate
+  const t0 = flows[0][0], npv = r => flows.reduce((s, [t, c]) => s + c / Math.pow(1 + r, (t - t0) / YEAR), 0);
+  let lo = -0.99, hi = 2; if (npv(lo) * npv(hi) > 0) return null;
+  for (let k = 0; k < 200; k++) { const m = (lo + hi) / 2; if (npv(lo) * npv(m) <= 0) hi = m; else lo = m; }
+  return (lo + hi) / 2;
+}
+function renderPlan() {
+  const amt = +$("p-amt").value, t0 = dateVal("p-start"), t1 = dateVal("p-end");
+  $("p-err").textContent = ""; $("p-out").innerHTML = "";
+  if (!(amt > 0)) { $("p-err").textContent = "Enter a monthly amount above zero."; return; }
+  if (!isFinite(t0) || !isFinite(t1) || t1 <= t0) { $("p-err").textContent = "Choose an end date after the start date."; return; }
+  const a = idxOnOrAfter(t0), b = idxOnOrBefore(t1), ends = monthEnds(a, b).filter(i => i < b);
+  if (!ends.length) { $("p-err").textContent = "The plan needs at least one month end before the end date."; return; }
+  let units = 0; const flows = [], series = [];
+  for (const i of ends) { units += amt / vA(i); flows.push([T[i], -amt]); series.push([T[i], +(units * vA(i)).toFixed(0), amt * series.length + amt]); }
+  const val = units * vA(b), inv = amt * ends.length; flows.push([T[b], val]);
+  const r = irrAnnual(flows);
+  $("p-out").innerHTML = `<div><div class="l">Invested (${state.ccy})</div><div class="v">${fmtMoney(inv)}</div></div>` +
+    `<div><div class="l">Value on ${fmtDate(T[b])}</div><div class="v">${fmtMoney(val)}</div></div>` +
+    `<div><div class="l">Internal rate of return</div><div class="v">${r == null ? "–" : fmtPct(r)}</div></div>`;
+  series.push([T[b], +val.toFixed(0), inv]);
+  getChart("c-plan").setOption(base({ grid: { left: 52, right: 12, top: 30, bottom: 26 }, xAxis: timeAxis(),
+    yAxis: valAxis({ min: 0, axisLabel: { color: theme.muted, formatter: v => v >= 1000 ? (v / 1000) + "k" : v } }),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtMoney(v) }),
+    series: [
+      { name: "Plan value", type: "line", data: series.map(x => [x[0], x[1]]), showSymbol: false, lineStyle: { width: 1.6, color: theme.accent2 }, itemStyle: { color: theme.accent2 } },
+      { name: "Amount paid in", type: "line", step: "end", data: series.map(x => [x[0], x[2]]), showSymbol: false, lineStyle: { width: 1.2, type: [5, 3], color: theme.muted }, itemStyle: { color: theme.muted } },
+    ] }), true);
+}
+function renderBest() {
+  const n = +$("b-n").value; $("b-nv").textContent = n;
+  const { i0, i1 } = state, r = [];
+  for (let i = i0 + 1; i <= i1; i++) r.push(vA(i) / vA(i - 1) - 1);
+  const idx = r.map((x, k) => k), byBest = [...idx].sort((a, b) => r[b] - r[a]), byWorst = [...idx].sort((a, b) => r[a] - r[b]);
+  const value = skip => { let v = 10000; r.forEach((x, k) => { if (!skip.has(k)) v *= 1 + x; }); return v; };
+  const nn = Math.min(n, Math.floor(r.length / 4));
+  const best = new Set(byBest.slice(0, nn)), worst = new Set(byWorst.slice(0, nn)), both = new Set([...best, ...worst]);
+  const vals = [["All days", value(new Set())], [`Without the ${nn} best`, value(best)], [`Without the ${nn} worst`, value(worst)], [`Without both`, value(both)]];
+  const narrow = $("c-best").clientWidth < 520;
+  getChart("c-best").setOption(base({ legend: { show: false }, grid: { left: narrow ? 118 : 140, right: 64, top: 8, bottom: narrow ? 8 : 22 },
+    xAxis: { type: "value", axisLabel: { show: !narrow, color: theme.muted, formatter: v => v >= 1000 ? (v / 1000) + "k" : v }, splitLine: { lineStyle: { color: theme.grid } } },
+    yAxis: { type: "category", inverse: true, data: vals.map(x => x[0]), axisLabel: { color: theme.ink2, fontSize: narrow ? 11 : 12 }, axisLine: { show: false }, axisTick: { show: false } },
+    tooltip: { show: false },
+    series: [{ type: "bar", data: vals.map((x, k) => ({ value: Math.round(x[1]), itemStyle: { color: [theme.accent, theme.bad, theme.good, theme.muted][k], borderRadius: [0, 3, 3, 0] } })),
+               barWidth: 16, label: { show: true, position: "right", color: theme.ink2, formatter: p => fmtMoney(p.value) } }] }), true);
+  $("b-text").textContent = `Over ${r.length.toLocaleString("en-US")} trading days, missing the ${nn} best days changes the final value from ${fmtMoney(vals[0][1])} to ${fmtMoney(vals[1][1])} ${state.ccy}; ` +
+    `avoiding the ${nn} worst would lift it to ${fmtMoney(vals[2][1])}. The best and worst days tend to occur in the same turbulent weeks.`;
+}
+function renderPloss() {
+  $("t-ploss").innerHTML = `<tr><th>Holding period</th><th>Historical windows</th><th>P(loss), historical</th><th>P(loss), bootstrap</th></tr>` +
+    D.analysis.probability_of_loss.map(x => `<tr><td>${x.horizon}</td><td>${x.windows}</td><td>${fmtPct(x.empirical, 0)}</td><td>${fmtPct(x.bootstrap, 0)}</td></tr>`).join("");
+}
+
+/* ------------------------------------------------------------------ Data */
+let wfPromise = null;
+function renderData() {
+  const q = D.quality, a = D.analysis, v = a.validation;
+  const card = (l, val, s = "") => `<div class="card"><div class="sub" style="margin:0">${l}</div><div class="v">${val}</div>${s ? `<div class="note" style="margin-top:2px">${s}</div>` : ""}</div>`;
+  $("status").innerHTML = card("Latest close in the data", fmtDate(T[N - 1]), `USD/CHF to ${q.fx_last}, T-bill to ${q.rf_last}`) +
+    `<div class="card" id="wf-card"><div class="sub" style="margin:0">Last automatic update</div><div class="v" id="wf">checking…</div><div class="note" id="wf-s" style="margin-top:2px"></div></div>` +
+    card("Validation against Vanguard", v.max_gap == null ? "–" : `max gap ${(v.max_gap * 100).toFixed(2)} pp`, `reference date ${v.reference_date}`) +
+    card("Data fingerprint", `<code>${a.reproducibility.data_sha256_16}</code>`, `report generated ${a.generated}`);
+  $("val-sub").textContent = `Annualised total returns (one year and longer) to ${v.reference_date}, Vanguard fact sheet vs Yahoo adjusted prices.`;
+  $("t-val").innerHTML = `<tr><th>Period</th><th>Vanguard (market)</th><th>Computed</th><th>Gap (pp)</th></tr>` +
+    v.rows.map(x => `<tr><td>${x.period}</td><td>${fmtPct(x.vanguard_market, 2)}</td><td>${fmtPct(x.computed, 2)}</td><td>${(Math.round((x.computed - x.vanguard_market) * 1e4) / 100 || 0).toFixed(2).replace("-", "−")}</td></tr>`).join("");
+  const ok = (cond, okText, badText) => `<span class="pill ${cond ? "ok" : "warn"}">${cond ? okText : badText}</span>`;
+  $("q-list").innerHTML = [
+    ["Rows in VT file", `<span class="pill">${q.rows.toLocaleString("en-US")}</span>`],
+    ["Missing closing prices", ok(q.missing_close === 0, "none", q.missing_close)],
+    ["Duplicate dates", ok(q.duplicate_dates === 0, "none", q.duplicate_dates)],
+    ["Longest gap between trading days", ok(q.max_gap_days <= 5, `${q.max_gap_days} days`, `${q.max_gap_days} days (to ${q.max_gap_end})`)],
+    ["Daily moves larger than ±10%", `<span class="pill">${q.moves_above_10pct}</span>`],
+    ["Adjusted price above closing price", ok(q.adj_above_close === 0, "none", q.adj_above_close)],
+  ].map(([l, v]) => `<li><span>${l}</span>${v}</li>`).join("");
+  wfPromise = wfPromise || fetch("https://api.github.com/repos/cedricmasset98/donnees-marche/actions/workflows/donnees.yml/runs?per_page=1")
+    .then(r => r.ok ? r.json() : Promise.reject());
+  wfPromise
+    .then(j => { const run = j.workflow_runs[0]; const good = run.conclusion === "success";
+      $("wf").innerHTML = `<span class="pill ${good ? "ok" : "warn"}">${run.status === "completed" ? run.conclusion : run.status}</span>`;
+      $("wf-s").innerHTML = `${new Date(run.updated_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · <a href="${run.html_url}">details</a>`; })
+    .catch(() => { $("wf").textContent = "unavailable"; $("wf-s").textContent = "GitHub API not reachable"; });
+}
+
+/* ------------------------------------------------------------------ orchestration */
+const renderers = { perf: renderPerf, risk: renderRisk, dist: renderDist, eff: renderEff, fx: renderFx,
+                    tools: () => { renderSim(); renderPlan(); renderBest(); renderPloss(); }, data: renderData };
+function render() {
+  renderKPIs();
+  renderers[state.tab]();
+  Object.values(charts).forEach(c => c.resize());
+  writeHash();
+}
+function setPeriod(i0, i1) {
+  state.i0 = Math.max(0, Math.min(i0, N - 2)); state.i1 = Math.max(state.i0 + 1, Math.min(i1, N - 1));
+  $("d0").value = iso(T[state.i0]); $("d1").value = iso(T[state.i1]);
+  render();
+}
+function preset(y) {
+  document.querySelectorAll("#presets button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.y === y));
+  if (y === 0) setPeriod(0, N - 1);
+  else { const t = new Date(T[N - 1]); t.setUTCFullYear(t.getUTCFullYear() - y); setPeriod(idxOnOrAfter(t.getTime()), N - 1); }
+}
+function writeHash() {
+  const h = `tab=${state.tab}&from=${iso(T[state.i0])}&to=${iso(T[state.i1])}&ccy=${state.ccy}`;
+  history.replaceState(null, "", "#" + h);
+}
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (p.get("ccy") === "CHF") state.ccy = "CHF";
+  if (p.get("tab") && renderers[p.get("tab")]) state.tab = p.get("tab");
+  const f = p.get("from"), t = p.get("to");
+  return f && t ? [idxOnOrAfter(Date.parse(f + "T00:00:00Z")), idxOnOrBefore(Date.parse(t + "T00:00:00Z"))] : null;
+}
+function showTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
+  render();
+}
+
+fetch("dashboard.json").then(r => r.json()).then(data => {
+  D = data; N = D.dates.length; AN = D.analysis;
+  T = D.dates.map(d => Date.parse(d + "T00:00:00Z")); C = D.close; A = D.adj; FX = D.fx; RF = D.rf;
+  readTheme();
+  // controls
+  const lo = iso(T[0]), hi = iso(T[N - 1]);
+  for (const id of ["d0", "d1", "s-buy", "s-sell", "p-start", "p-end"]) { $(id).min = lo; $(id).max = hi; }
+  $("s-buy").value = lo; $("s-sell").value = hi; $("p-start").value = lo; $("p-end").value = hi;
+  document.querySelectorAll("#presets button").forEach(b => b.addEventListener("click", () => preset(+b.dataset.y)));
+  const onDates = () => { const a = dateVal("d0"), b = dateVal("d1");
+    if (isFinite(a) && isFinite(b) && b > a) { document.querySelectorAll("#presets button").forEach(x => x.setAttribute("aria-pressed", "false")); setPeriod(idxOnOrAfter(a), idxOnOrBefore(b)); } };
+  $("d0").addEventListener("change", onDates); $("d1").addEventListener("change", onDates);
+  document.querySelectorAll("#ccy button").forEach(b => b.addEventListener("click", () => {
+    state.ccy = b.dataset.c; document.querySelectorAll("#ccy button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); }));
+  document.querySelectorAll("#scale button").forEach(b => b.addEventListener("click", () => {
+    state.scale = b.dataset.s; document.querySelectorAll("#scale button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); }));
+  document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  for (const id of ["s-amt", "s-buy", "s-sell", "s-div"]) $(id).addEventListener("input", renderSim);
+  for (const id of ["p-amt", "p-start", "p-end"]) $(id).addEventListener("input", renderPlan);
+  $("b-n").addEventListener("input", renderBest);
+  window.addEventListener("resize", () => Object.values(charts).forEach(c => c.resize()));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); render(); });
+
+  const fromHash = readHash();
+  document.querySelectorAll("#ccy button").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === state.ccy));
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === state.tab));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + state.tab));
+  if (fromHash && fromHash[1] > fromHash[0]) {
+    document.querySelectorAll("#presets button").forEach(x => x.setAttribute("aria-pressed", "false"));
+    setPeriod(fromHash[0], fromHash[1]);
+  } else preset(0);
+}).catch(err => { $("period-note").textContent = "The data could not be loaded. Please reload the page."; console.error(err); });
 })();
 </script>
 </body>
