@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VT Market Data</title>
+<meta name="description" content="Vanguard Total World Stock ETF (VT): price history since inception, key statistics, full analysis report and downloadable data, updated every weekday.">
+<style>
+  :root {
+    --bg: #fbfbf9; --surface: #ffffff; --ink: #121211; --ink-2: #52514e; --muted: #898781;
+    --line: #e4e3dc; --accent: #2a78d6; --accent-2: #eb6834; --good: #12804f; --bad: #c43c3b;
+    --grid: #ecebe5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --surface: #1c1c1a; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8e88;
+      --line: #2f2f2c; --accent: #4b93ea; --accent-2: #e8733f; --good: #3fbf86; --bad: #ec6c6b;
+      --grid: #262624;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 16px 64px; }
+  header .eyebrow { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+  h1 { font-size: clamp(26px, 5vw, 38px); line-height: 1.15; margin: 0 0 8px; font-weight: 650; letter-spacing: -0.01em; }
+  .lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+  .price-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 28px 0 4px; }
+  .price { font-size: clamp(34px, 7vw, 48px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .chg { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .asof { font-size: 13px; color: var(--muted); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+          background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 24px 0 32px; }
+  .kpi { background: var(--surface); padding: 14px 16px; }
+  .kpi .l { font-size: 12.5px; color: var(--muted); margin-bottom: 2px; }
+  .kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 12px; }
+  .controls { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { appearance: none; border: 0; background: transparent; color: var(--ink-2); font: inherit;
+                font-size: 13.5px; padding: 6px 12px; cursor: pointer; min-height: 34px; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin: 0 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .sw { width: 16px; height: 0; border-top: 2px solid var(--accent); }
+  .sw.tr { border-top: 2px dashed var(--accent-2); }
+  .chart { position: relative; height: 360px; }
+  @media (max-width: 600px) { .chart { height: 280px; } }
+  .note { font-size: 12.5px; color: var(--muted); margin: 10px 2px 0; }
+  h2 { font-size: 20px; margin: 44px 0 12px; font-weight: 650; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .dl { list-style: none; margin: 0; padding: 0; }
+  .dl li { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+           padding: 12px 0; border-top: 1px solid var(--line); }
+  .dl li:first-child { border-top: 0; padding-top: 2px; }
+  .dl .t { font-weight: 550; }
+  .dl .d { font-size: 13px; color: var(--muted); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .btn { display: inline-block; font-size: 13.5px; font-weight: 550; border: 1px solid var(--line);
+         border-radius: 8px; padding: 6px 12px; white-space: nowrap; color: var(--ink); }
+  .btn:hover { border-color: var(--muted); text-decoration: none; }
+  .report { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+  .report p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  .report ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+  .pos { color: var(--good); } .neg { color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Market data · updated every weekday</p>
+    <h1>Vanguard Total World Stock ETF (VT)</h1>
+    <p class="lede">A single fund covering thousands of stocks across developed and emerging markets. Price history since inception, key statistics and a full analysis report, rebuilt automatically from Yahoo Finance data.</p>
+    <div class="price-row">
+      <span class="price" id="price">–</span>
+      <span class="chg" id="chg"></span>
+      <span class="asof" id="asof"></span>
+    </div>
+  </header>
+
+  <section class="kpis" aria-label="Key statistics">
+    <div class="kpi"><div class="l">Year to date</div><div class="v" id="k-ytd">–</div></div>
+    <div class="kpi"><div class="l">Last 12 months</div><div class="v" id="k-1y">–</div></div>
+    <div class="kpi"><div class="l">Annualised since inception</div><div class="v" id="k-cagr">–</div></div>
+    <div class="kpi"><div class="l">Annualised volatility</div><div class="v" id="k-vol">–</div></div>
+    <div class="kpi"><div class="l">Maximum drawdown</div><div class="v" id="k-mdd">–</div></div>
+    <div class="kpi"><div class="l">Below all-time high</div><div class="v" id="k-cdd">–</div></div>
+  </section>
+
+  <section class="card" aria-label="Price chart">
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Period" id="range">
+        <button data-y="1" aria-pressed="false">1Y</button>
+        <button data-y="5" aria-pressed="false">5Y</button>
+        <button data-y="10" aria-pressed="false">10Y</button>
+        <button data-y="0" aria-pressed="true">Max</button>
+      </div>
+      <div class="seg" role="group" aria-label="Scale" id="scale">
+        <button data-s="linear" aria-pressed="true">Linear</button>
+        <button data-s="logarithmic" aria-pressed="false">Log</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw"></i>Closing price</span>
+      <span><i class="sw tr"></i>Total return (dividends reinvested)</span>
+    </div>
+    <div class="chart">
+      <canvas id="chart" role="img" aria-label="Line chart of VT closing price and total return since inception"></canvas>
+    </div>
+    <p class="note">Daily data in USD. Total return uses prices adjusted for dividends and splits, so it starts below the closing price and ends at the same level.</p>
+  </section>
+
+  <h2>Analysis and data</h2>
+  <div class="grid2">
+    <div class="card report">
+      <div>
+        <p style="font-weight:600;color:var(--ink);margin-bottom:6px">Full analysis report (PDF, 8 pages)</p>
+        <ul>
+          <li>Return, volatility, drawdowns, Sharpe, Sortino, Calmar</li>
+          <li>Fat tails, VaR and Expected Shortfall, volatility clustering</li>
+          <li>Market efficiency: autocorrelation, variance ratio, calendar effects</li>
+          <li>Holding periods, best days, savings plan, Swiss franc view</li>
+        </ul>
+      </div>
+      <div><a class="btn" href="VT_analysis.pdf">Open the report</a></div>
+    </div>
+    <div class="card">
+      <ul class="dl">
+        <li><div><div class="t">VT daily prices</div><div class="d">Open, high, low, close, adjusted close, volume</div></div><a class="btn" href="data/VT.csv" download>CSV</a></li>
+        <li><div><div class="t">USD/CHF</div><div class="d">Swiss francs per US dollar, daily</div></div><a class="btn" href="data/CHFX.csv" download>CSV</a></li>
+        <li><div><div class="t">13-week US T-bill</div><div class="d">Annualised yield in %, risk-free rate proxy</div></div><a class="btn" href="data/IRX.csv" download>CSV</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    Source: Yahoo Finance via the yfinance library. Data are updated incrementally every weekday evening by a GitHub Actions workflow in
+    <a href="https://github.com/cedricmasset98/donnees-marche">cedricmasset98/donnees-marche</a>.
+    For teaching and research purposes; not investment advice.
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function () {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const pct = (x, d = 1, s = false) => x == null ? "–" : (s && x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%";
+  const fmtDate = s => new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const set = (id, v, cls) => { const el = document.getElementById(id); el.textContent = v; if (cls) el.className = (el.className + " " + cls).trim(); };
+
+  fetch("summary.json").then(r => r.json()).then(s => {
+    set("price", "$" + s.price.toFixed(2));
+    set("chg", pct(s.day_change, 2, true), s.day_change >= 0 ? "pos" : "neg");
+    set("asof", "Close of " + fmtDate(s.updated));
+    set("k-ytd", pct(s.ytd, 1, true), s.ytd >= 0 ? "pos" : "neg");
+    set("k-1y", pct(s.one_year, 1, true), s.one_year >= 0 ? "pos" : "neg");
+    set("k-cagr", pct(s.cagr_tr));
+    set("k-vol", pct(s.vol));
+    set("k-mdd", pct(s.max_dd));
+    set("k-cdd", s.current_dd > -0.0005 ? "At the high" : pct(s.current_dd));
+  }).catch(() => {});
+
+  let chart, dates = [], close = [], adj = [];
+
+  function draw(years, scale) {
+    let start = 0;
+    if (years > 0) {
+      const cut = dates[dates.length - 1] - years * 365.25 * 864e5;
+      start = dates.findIndex(t => t >= cut);
+    }
+    const pts = (arr) => arr.slice(start).map((y, i) => ({ x: dates[start + i], y }));
+    const spanYears = (dates[dates.length - 1] - dates[start]) / (365.25 * 864e5);
+    chart.data.datasets[0].data = pts(close);
+    chart.data.datasets[1].data = pts(adj);
+    chart.options.scales.y.type = scale;
+    chart.options.scales.x.min = dates[start];
+    chart.options.scales.x._span = spanYears;
+    chart.update("none");
+  }
+
+  fetch("data/VT.csv").then(r => r.text()).then(txt => {
+    const rows = txt.trim().split("\n");
+    const h = rows[0].split(",");
+    const iD = h.indexOf("Date"), iC = h.indexOf("Close"), iA = h.indexOf("Adj Close");
+    for (const line of rows.slice(1)) {
+      const c = line.split(",");
+      dates.push(Date.parse(c[iD] + "T00:00:00Z"));
+      close.push(+(+c[iC]).toFixed(2));
+      adj.push(+(+c[iA]).toFixed(2));
+    }
+    const grid = css("--grid"), muted = css("--muted");
+    chart = new Chart(document.getElementById("chart"), {
+      type: "line",
+      data: { datasets: [
+        { label: "Closing price", data: [], borderColor: css("--accent"), borderWidth: 1.6, pointRadius: 0, pointHoverRadius: 3 },
+        { label: "Total return", data: [], borderColor: css("--accent-2"), borderWidth: 1.6, borderDash: [5, 3], pointRadius: 0, pointHoverRadius: 3 }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          decimation: { enabled: true, algorithm: "lttb", samples: 900 },
+          tooltip: { callbacks: {
+            title: items => new Date(items[0].parsed.x).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
+            label: c => " " + c.dataset.label + ": $" + c.parsed.y.toFixed(2)
+          }}
+        },
+        scales: {
+          x: { type: "linear", grid: { display: false }, border: { color: grid },
+               afterBuildTicks: axis => {
+                 const span = axis.chart.options.scales.x._span || 20, t = [];
+                 const a = new Date(axis.min), b = new Date(axis.max);
+                 if (span <= 2) {
+                   const step = span <= 1.2 ? 2 : 3;
+                   let d = Date.UTC(a.getUTCFullYear(), a.getUTCMonth() + 1, 1);
+                   while (d <= axis.max) { const m = new Date(d).getUTCMonth(); if (m % step === 0) t.push({ value: d });
+                     d = Date.UTC(new Date(d).getUTCFullYear(), new Date(d).getUTCMonth() + 1, 1); }
+                 } else {
+                   const step = (span > 12 || (span > 6 && axis.chart.width < 500)) ? 2 : 1;
+                   for (let y = a.getUTCFullYear() + 1; y <= b.getUTCFullYear(); y++) if (y % step === 0) t.push({ value: Date.UTC(y, 0, 1) });
+                 }
+                 axis.ticks = t;
+               },
+               ticks: { color: muted, maxRotation: 0, autoSkip: false,
+                 callback: function (v) {
+                   const d = new Date(v), span = this.chart.options.scales.x._span || 20;
+                   return span <= 2 ? d.toLocaleDateString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" })
+                                    : d.getUTCFullYear();
+                 } } },
+          y: { type: "linear", grid: { color: grid }, border: { display: false },
+               ticks: { color: muted, callback: v => "$" + Math.round(v) } }
+        }
+      }
+    });
+    chart.options.scales.x.max = dates[dates.length - 1];
+    draw(0, "linear");
+
+    const state = { y: 0, s: "linear" };
+    document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
+      document.querySelectorAll("#range button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      state.y = +b.dataset.y; draw(state.y, state.s);
+    }));
+    document.querySelectorAll("#scale button").forEach(b => b.addEventListener("click", () => {
+      document.querySelectorAll("#scale button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      state.s = b.dataset.s; draw(state.y, state.s);
+    }));
+  });
+})();
+</script>
+</body>
+</html>
