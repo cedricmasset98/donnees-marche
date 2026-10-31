@@ -100,8 +100,8 @@ Probability of loss over 1 / 5 / 10 years: block bootstrap & 24\% / 10\% / 4\% \
   \item Over 18.3 years, VT returned 8.7\% a year with dividends reinvested, of which roughly 2.2\% a year came from dividends. These figures match Vanguard's published market-price returns to within 0.01 percentage point.
   \item Measured on monthly returns, annualised volatility is 16.5\%; scaling daily volatility by $\sqrt{252}$ gives 20.4\% because daily returns are negatively autocorrelated. The maximum drawdown was $-$50\% during the global financial crisis.
   \item The Sharpe ratio of 0.50 has a 95\% confidence interval of [0.02, 0.99]: eighteen years of data are barely enough to distinguish it from zero.
-  \item Daily returns have fat tails (kurtosis 16.1) and strongly persistent volatility (GARCH persistence 0.993, half-life of about 96 trading days). A GARCH(1,1)-$t$ model forecasts the 5\% Value at Risk well out of sample; rolling historical and normal VaR do not, because their breaches cluster.
-  \item After correcting for multiple testing, the only departure from a random walk is a small negative autocorrelation of daily returns ($-$0.105); it vanishes at weekly and monthly frequencies. No calendar effect is significant, and a 200-day moving-average rule underperformed buy and hold.
+  \item Daily returns have fat tails (kurtosis 16.1) and strongly persistent volatility (GARCH persistence 0.993, half-life of about 96 trading days). Out of sample, a GARCH(1,1)-$t$ model gives the best variance forecasts by the QLIKE criterion, but its edge over a simple EWMA is not statistically significant. It passes the 5\% VaR backtest, unlike rolling historical and normal VaR, whose breaches cluster.
+  \item After correcting for multiple testing, the only rejection of the random walk is a small negative autocorrelation of daily returns ($-$0.105), not detectable at weekly and monthly frequencies. No calendar effect is detected, and moving-average timing rules underperformed buy and hold whatever the window and execution lag.
   \item For a Swiss franc investor, the weaker dollar cut the annualised return by 1.3\% (7.4\% in CHF), before taxes.
 \end{itemize}
 
@@ -112,7 +112,7 @@ Probability of loss over 1 / 5 / 10 years: block bootstrap & 24\% / 10\% / 4\% \
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{price.pdf}
-\caption{Closing price and total return (dividends reinvested), USD, log scale. Equal slopes represent equal percentage returns; the widening gap reflects reinvested dividends.}
+\caption{Price index and total-return index (dividends reinvested), both rebased to 100 at inception, log scale. The gap between the two lines is the cumulative contribution of reinvested dividends; equal slopes represent equal percentage returns.}
 \end{figure}
 
 \keep{16}\subsection{Calendar-year returns}
@@ -146,7 +146,11 @@ Quarterly & 74 & 17.8\% \\
 \end{table}
 Volatility varies sharply across regimes. The exponentially weighted estimate ranges from 4\% (Nov 2017) to 85\% (23 Oct 2008), and the GARCH conditional volatility peaks at 111\% on 17 Mar 2020. Both measures react within days to a shock and decay as markets calm down. An equally weighted one-year window would instead keep an extreme day at full weight for exactly 252 sessions and then drop it abruptly, creating plateaus that do not reflect the actual level of risk. Both curves use daily returns scaled by $\sqrt{252}$, so the reference line is the full-period figure on the same basis (20.4\%). The GARCH curve uses parameters estimated on the whole sample and is therefore descriptive; the out-of-sample forecasts are evaluated in Section~2.
 
-The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by $\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated (Section~3), so daily data annualised with $\sqrt{252}$ give 20.4\%, whereas monthly data give 16.6\%. The ratio of the two variances, 0.66, is of the same order as the variance ratio estimated in Section~3 at a 20-day horizon (0.76), given the sampling error of only 220 monthly observations. This report therefore uses monthly returns for annualised volatility and for the Sharpe and Sortino ratios.
+The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by $\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated (Section~3), so daily data annualised with $\sqrt{252}$ give 20.4\%, whereas monthly data give 16.6\%.
+
+The variance of a sum of $q$ daily returns decomposes into variances and autocovariances:
+\[ \operatorname{Var}\Big(\sum_{k=1}^{q} r_k\Big) = q\,\gamma_0\Big[1 + 2\sum_{k=1}^{q-1}\Big(1 - \frac{k}{q}\Big)\rho_k\Big]. \]
+With the first 20 daily autocorrelations, the bracket equals 0.72 for $q = 21$: serial dependence alone would reduce the monthly variance to 72\% of 21 times the daily variance. The observed ratio is 0.66, with a 95\% interval of about [0.48, 0.83] from the sampling error of 220 monthly variances (kurtosis of monthly returns 5.1). Autocorrelation thus explains most of the gap, and the remainder is within estimation error. This report uses monthly returns for annualised volatility and for the Sharpe and Sortino ratios.
 
 \keep{16}\subsection{Drawdowns}
 \begin{figure}[H]
@@ -264,16 +268,55 @@ The model $\sigma_t^2 = \omega + \alpha\,\varepsilon_{t-1}^2 + \beta\,\sigma_{t-
 \midrule
 5\% & Historical (250 days) & 5.20\% & 214 / 206 & 0.558 & $<$ 0.001 & $<$ 0.001 \\
 5\% & Normal (250 days) & 5.22\% & 215 / 206 & 0.511 & $<$ 0.001 & $<$ 0.001 \\
-5\% & GARCH(1,1)-t & 5.35\% & 220 / 206 & 0.313 & 0.929 & 0.599 \\
+5\% & GARCH(1,1)-t & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
 1\% & Historical (250 days) & 1.36\% & 56 / 41 & 0.027 & $<$ 0.001 & $<$ 0.001 \\
 1\% & Normal (250 days) & 2.38\% & 98 / 41 & $<$ 0.001 & $<$ 0.001 & $<$ 0.001 \\
 1\% & GARCH(1,1)-t & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
-\note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. The GARCH forecasts use a zero conditional mean, standard at a one-day horizon; with the maximum-likelihood location estimate instead (0.085\% a day, well above the sample mean of 0.033\% because of negative skewness), the breach rates rise to 6.10\% and 1.46\%. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
+\note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
 
-Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts pass both tests at 5\% (breach rate 5.35\%; $p$-values 0.313 and 0.929). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
+Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\% (breach rate 5.25\%; $p$-values 0.467 and 0.410). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
+
+\begin{table}[H]
+\small
+\caption{GARCH(1,1)-$t$ VaR backtest under three treatments of the conditional mean.}
+\begin{tabularx}{\linewidth}{l L r r r r r}
+\toprule
+\textbf{Level} & \textbf{Mean specification} & \textbf{Breach rate} & \textbf{Breaches / exp.} & \textbf{Kupiec} & \textbf{Christoff.} & \textbf{CC} \\
+\midrule
+5\% & Zero mean, estimated as such (main) & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
+5\% & ML mean kept & 6.10\% & 251 / 206 & 0.002 & 0.840 & 0.007 \\
+5\% & ML parameters, mean set to zero afterwards & 5.35\% & 220 / 206 & 0.313 & 0.929 & 0.599 \\
+1\% & Zero mean, estimated as such (main) & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
+1\% & ML mean kept & 1.46\% & 60 / 41 & 0.006 & 0.012 & $<$ 0.001 \\
+1\% & ML parameters, mean set to zero afterwards & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-likelihood location estimate (0.085\% a day) lies well above the sample mean (0.033\%), because negative skewness pulls the mean below the centre of the distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to 6.10\% and 1.46\%, which the coverage tests reject. The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the conclusion rests on the treatment of the mean, not on how it is imposed.
+
+\keep{16}\subsection{Variance forecasts: out-of-sample comparison}
+\begin{table}[H]
+\small
+\caption{Out-of-sample variance forecasts over the backtest period. Lower losses are better; Diebold--Mariano test of QLIKE against EWMA.}
+\begin{tabularx}{\linewidth}{l L r r r r r}
+\toprule
+\textbf{Horizon} & \textbf{Model} & \textbf{QLIKE} & \textbf{MSE} & \textbf{Rank} & \textbf{DM stat.} & \textbf{$p$-value} \\
+\midrule
+1 day & Historical variance (250 days) & 1.087 & 20.6 & 3 & 3.87 & $<$ 0.001 \\
+1 day & EWMA ($\lambda = 0.94$) & 0.819 & 17.4 & 2 & -- & -- \\
+1 day & GARCH(1,1)-$t$ & 0.797 & 16.2 & 1 & $-$1.95 & 0.051 \\
+\midrule{}21 days & Historical variance (250 days) & 4.312 & 2,843.1 & 3 & 1.92 & 0.055 \\
+21 days & EWMA ($\lambda = 0.94$) & 4.123 & 2,936.3 & 2 & -- & -- \\
+21 days & GARCH(1,1)-$t$ & 4.058 & 3,338.0 & 1 & $-$1.31 & 0.190 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\note{Variances in squared percent. Proxy: squared daily return (1 day) and realised variance, the sum of the next 21 squared daily returns (21 days). GARCH: zero-mean model re-estimated each year, multi-step forecasts from its persistence and long-run variance; EWMA and historical variance are held flat over the horizon. Rank by QLIKE. Diebold--Mariano statistics use a Newey--West variance (5 and 25 lags); a negative value favours the model over EWMA.}
+
+A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are also compared directly, out of sample, over the same period. QLIKE, $\log h_t + \hat\sigma_t^2/h_t$, and the mean squared error are both robust to noise in the variance proxy \citep{patton2011}; QLIKE penalises under-prediction of risk more heavily and is less dominated by a few extreme days. By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \citep{diebold1995} against EWMA gives $p = 0.051$ at one day and $p = 0.190$ at 21 days: the improvement over a model with a single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted 250-day variance ($p$ $<$ 0.001), and GARCH has a lower loss still. By MSE, the ranking changes at 21 days (the 250-day historical variance first), because squared errors are dominated by the few crisis months. The richer model helps describe volatility, but its forecasting advantage is modest.
 
 % ---------------------------------------------------------------- 3
 \keep{24}
@@ -342,7 +385,7 @@ January effect: January vs other months (Welch) & 0.38\% vs 0.85\% per month & 0
 \note{With fewer than twenty observations per calendar month, these tests have little power: the absence of significance does not prove the absence of an effect, only that any effect is too small to detect in eighteen years of data.}
 
 \keep{12}\subsection{Multiple testing}
-Section~3 reports 10 hypothesis tests. At the 5\% level, about one false rejection is expected by chance alone, so each $p$-value is also adjusted with the step-down procedure of \citet{holm1979}, which controls the probability of any false rejection. 3 tests are significant before adjustment and 2 after. Both remaining rejections concern the same first-order daily autocorrelation, since $VR(2) \approx 1 + \hat\rho_1$.
+Section~3 reports 10 hypothesis tests. If all null hypotheses were true and the tests independent, 0.5 false rejections would be expected at the 5\% level, and the probability of at least one would be about 40\%. Each $p$-value is also adjusted with the step-down procedure of \citet{holm1979}, which controls the probability of any false rejection. 3 tests are significant before adjustment and 2 after. Both remaining rejections concern the same first-order daily autocorrelation, since $VR(2) \approx 1 + \hat\rho_1$.
 
 \keep{16}\subsection{Moving-average timing rules}
 \begin{figure}[H]
@@ -369,23 +412,23 @@ Final value of USD 10{,}000 & USD 65,660 & USD 29,231 \\
 
 \begin{table}[H]
 \small
-\caption{Sensitivity to the moving-average window (common period).}
-\begin{tabularx}{\linewidth}{L r r r r r r}
+\caption{Sensitivity to the moving-average window and to execution (common period). Volatility, Sharpe and drawdown refer to the main execution.}
+\begin{tabularx}{\linewidth}{L r r r r r r r}
 \toprule
-\textbf{Window} & \textbf{Ann.\ return} & \textbf{Volatility} & \textbf{Sharpe} & \textbf{Max.\ DD} & \textbf{Switches} & \textbf{Invested} \\
+\textbf{Window} & \textbf{Ann.\ return} & \textbf{Delayed} & \textbf{Volatility} & \textbf{Sharpe} & \textbf{Max.\ DD} & \textbf{Switches} & \textbf{Invested} \\
 \midrule
-50 days & 3.6\% & 9.6\% & 0.26 & $-$25.9\% & 319 & 68\% \\
-100 days & 5.9\% & 10.3\% & 0.47 & $-$25.2\% & 203 & 72\% \\
-150 days & 5.6\% & 10.7\% & 0.42 & $-$26.9\% & 176 & 74\% \\
-200 days & 6.4\% & 11.2\% & 0.48 & $-$22.5\% & 140 & 77\% \\
-250 days & 6.3\% & 11.0\% & 0.48 & $-$23.1\% & 141 & 77\% \\
-\midrule{}Buy and hold & 11.5\% & 14.7\% & 0.71 & $-$34.2\% & 0 & 100\% \\
+50 days & 3.6\% & 4.2\% & 9.6\% & 0.26 & $-$25.9\% & 319 & 68\% \\
+100 days & 5.9\% & 5.3\% & 10.3\% & 0.47 & $-$25.2\% & 203 & 72\% \\
+150 days & 5.6\% & 7.5\% & 10.7\% & 0.42 & $-$26.9\% & 176 & 74\% \\
+200 days & 6.4\% & 7.0\% & 11.2\% & 0.48 & $-$22.5\% & 140 & 77\% \\
+250 days & 6.3\% & 6.3\% & 11.0\% & 0.48 & $-$23.1\% & 141 & 77\% \\
+\midrule{}Buy and hold & 11.5\% & 11.5\% & 14.7\% & 0.71 & $-$34.2\% & 0 & 100\% \\
 \bottomrule
 \end{tabularx}
 \end{table}
-\note{Rule: invested in VT when the previous day's close is above its moving average, otherwise held in T-bills; switches are executed at that same close and cost 0.10\% each. All windows are compared over the same period, starting 24 Jun 2009, the first day on which a 250-day average is available.}
+\note{Rule: the position earning the return of day $t$ is decided with prices up to the close of day $t-1$, so no future information is used. The main case assumes the trade is executed at that same close (a market-on-close order placed just before the close); the delayed case executes one session later. Out of the market, the rule earns the T-bill rate; each switch costs 0.10\%. All windows are compared over the same period, starting 24 Jun 2009, the first day on which a 250-day average is available.}
 
-Every window underperformed buy and hold, by 5.1\% to 7.9\% a year, while reducing the maximum drawdown. For the 200-day rule, a circular block bootstrap (2,000 replications, 63-day blocks) gives a 95\% confidence interval of [0.2\%, 10.3\%] for the annual return gap ($p = 0.051$): the underperformance is borderline significant. The sample starts in mid-2009, after the financial-crisis crash that such rules are designed to avoid, which works against them; a longer index history would be needed for a fair assessment. Late and repeated signals (``whipsaws'') are costly in a market that recovers quickly.
+Every window underperformed buy and hold, by 5.1\% to 7.9\% a year, while reducing the maximum drawdown. For the 200-day rule, a circular block bootstrap (2,000 replications, 63-day blocks) gives a 95\% confidence interval of [0.2\%, 10.3\%] for the annual return gap ($p = 0.051$): the underperformance is borderline significant. The sample starts in mid-2009, after the financial-crisis crash that such rules are designed to avoid, which works against them; a longer index history would be needed for a fair assessment. Late and repeated signals (``whipsaws'') are costly in a market that recovers quickly. Delaying execution by one session changes the results by up to 1.9\% a year, in both directions: the ranking of windows is fragile, but the underperformance against buy and hold is not.
 
 % ---------------------------------------------------------------- 4
 \keep{24}
@@ -411,7 +454,39 @@ Every window underperformed buy and hold, by 5.1\% to 7.9\% a year, while reduci
 \bottomrule
 \end{tabularx}
 \end{table}
-Overlapping windows understate the probability of loss at long horizons: the 10-year windows contain only about one and a half independent periods, none of which happened to lose money. A stationary bootstrap \citep{politis1994} that resamples blocks of monthly returns (mean length 12 months, 20,000 paths) gives a more defensible estimate: 10\% over five years and 4\% over ten. The bootstrap still assumes that the next decades resemble the past eighteen years.
+Overlapping windows understate the probability of loss at long horizons: the 10-year windows contain only about one and a half independent periods, none of which happened to lose money. A stationary bootstrap \citep{politis1994} that resamples blocks of monthly returns (mean length 12 months, 20,000 paths) gives a more defensible estimate: 10\% over five years and 4\% over ten.
+
+These figures are fragile. The Monte Carlo error is negligible (about 0.1 percentage point), but the estimate depends on the assumed block length, which governs how much of the slow-moving dependence in returns is preserved: from 1\% to 6\% over ten years across the block lengths tested. Above all, no resampling scheme can capture the uncertainty about the true expected return. Treating monthly log returns as independent and normal, the probability of a ten-year loss is 6\%; moving the mean return to either end of its 95\% confidence interval gives 0.1\% to 45\%. Eighteen years of data simply do not pin down the long-run probability of loss.
+
+\begin{table}[H]
+\footnotesize
+\begin{minipage}[t]{0.48\linewidth}
+\caption{Bootstrap probability of loss by mean block length (months).}
+\begin{tabularx}{\linewidth}{L r r r}
+\toprule
+\textbf{Block} & \textbf{1 year} & \textbf{5 years} & \textbf{10 years} \\
+\midrule
+1 (i.i.d.) & 29\% & 13\% & 5.9\% \\
+6 & 25\% & 13\% & 6.3\% \\
+12 (main) & 25\% & 10\% & 4.0\% \\
+24 & 24\% & 7\% & 1.9\% \\
+36 & 25\% & 5\% & 1.0\% \\
+\bottomrule
+\end{tabularx}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+\caption{Normal i.i.d. model: probability of loss with the mean at its estimate and at the ends of its 95\% interval.}
+\begin{tabularx}{\linewidth}{L r r r}
+\toprule
+\textbf{Horizon} & \textbf{Estimate} & \textbf{High $\mu$} & \textbf{Low $\mu$} \\
+\midrule
+1 year & 31\% & 17.0\% & 48\% \\
+5 years & 13\% & 1.6\% & 47\% \\
+10 years & 6\% & 0.1\% & 45\% \\
+\bottomrule
+\end{tabularx}
+\end{minipage}
+\end{table}
 
 \keep{16}\subsection{Sensitivity to the starting date}
 \begin{figure}[H]
@@ -503,10 +578,14 @@ Yahoo's adjusted prices are not an official source, so the total returns used in
 % ---------------------------------------------------------------- 8
 \keep{12}
 \section{Conclusion}
-The evidence describes a broadly diversified equity fund that has delivered the equity risk premium with the usual features of equity returns: fat tails, volatility that clusters and persists, and deep but temporary drawdowns. Prices are close to a random walk at the horizons that matter to investors; the one statistically robust anomaly, a small negative daily autocorrelation, is too small and too concentrated in crises to be exploited, and simple timing rules or calendar strategies did not add value. For long-term investors, the main lessons are about horizon and discipline rather than prediction: the probability of loss falls with the holding period but never reaches zero, and missing a handful of days in the middle of a crisis is as costly as suffering the worst of it.
+The evidence describes a broadly diversified equity fund that has delivered the equity risk premium with the usual features of equity returns: fat tails, volatility that clusters and persists, and deep but temporary drawdowns.
+
+Three statements about efficiency need to be kept apart. Statistically, the random walk is rejected only for a small negative daily autocorrelation; failing to reject it at longer horizons does not prove that prices are efficient, because the tests have limited power with eighteen years of data. In terms of predictability, the effect explains about 1.1\% of the variance of daily returns and is concentrated in crises. Economically, none of the simple rules examined, moving averages or calendar strategies, created value after costs. The data are consistent with an efficient market at the horizons that matter to investors, without proving it.
+
+On risk, the richer models help to describe volatility, but their forecasting advantage over a simple exponentially weighted average is modest, and every model still underestimates how extreme losses cluster. For long-term investors, the lessons are about horizon and discipline rather than prediction: the probability of loss falls with the holding period but remains uncertain and not negligible, and missing a handful of days in the middle of a crisis is as costly as suffering the worst of it.
 
 \section*{Data, methods and reproducibility}
-\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.17, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. These analyses are descriptive and historical; they do not constitute investment advice.}
+\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.18, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. These analyses are descriptive and historical; they do not constitute investment advice.}
 
 \begin{thebibliography}{9}
 \footnotesize
@@ -515,6 +594,8 @@ The evidence describes a broadly diversified equity fund that has delivered the 
 Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. \emph{Journal of Econometrics}, 31(3), 307--327.
 \bibitem[Christoffersen(1998)]{christoffersen1998}
 Christoffersen, P.~F. (1998). Evaluating interval forecasts. \emph{International Economic Review}, 39(4), 841--862.
+\bibitem[Diebold and Mariano(1995)]{diebold1995}
+Diebold, F.~X. and Mariano, R.~S. (1995). Comparing predictive accuracy. \emph{Journal of Business \& Economic Statistics}, 13(3), 253--263.
 \bibitem[Holm(1979)]{holm1979}
 Holm, S. (1979). A simple sequentially rejective multiple test procedure. \emph{Scandinavian Journal of Statistics}, 6(2), 65--70.
 \bibitem[Kupiec(1995)]{kupiec1995}
@@ -525,6 +606,8 @@ Lo, A.~W. and MacKinlay, A.~C. (1988). Stock market prices do not follow random 
 Mertens, E. (2002). Comments on variance of the IID estimator in Lo (2002). Working paper, University of Basel.
 \bibitem[Opdyke(2007)]{opdyke2007}
 Opdyke, J.~D. (2007). Comparing Sharpe ratios: So where are the p-values? \emph{Journal of Asset Management}, 8(5), 308--336.
+\bibitem[Patton(2011)]{patton2011}
+Patton, A.~J. (2011). Volatility forecast comparison using imperfect volatility proxies. \emph{Journal of Econometrics}, 160(1), 246--256.
 \bibitem[Politis and Romano(1994)]{politis1994}
 Politis, D.~N. and Romano, J.~P. (1994). The stationary bootstrap. \emph{Journal of the American Statistical Association}, 89(428), 1303--1313.
 \end{thebibliography}

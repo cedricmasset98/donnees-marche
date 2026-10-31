@@ -182,7 +182,7 @@
     <div class="grid">
       <div class="card full">
         <div class="card-head">
-          <div><h3>Price and total return</h3><p class="sub" id="perf-sub">Drag or pinch to zoom.</p></div>
+          <div><h3>Price and total-return indices</h3><p class="sub" id="perf-sub">Drag or pinch to zoom.</p></div>
           <div class="seg" role="group" aria-label="Scale" id="scale">
             <button data-s="value" aria-pressed="true">Linear</button><button data-s="log">Log</button>
           </div>
@@ -509,18 +509,19 @@ function renderKPIs() {
 /* ------------------------------------------------------------------ Performance */
 function renderPerf() {
   const { i0, i1 } = state, tr = [], pr = [];
-  for (let i = i0; i <= i1; i++) { tr.push([T[i], +vA(i).toFixed(3)]); pr.push([T[i], +vC(i).toFixed(3)]); }
+  const a0 = vA(i0), c0 = vC(i0);
+  for (let i = i0; i <= i1; i++) { tr.push([T[i], +(vA(i) / a0 * 100).toFixed(2)]); pr.push([T[i], +(vC(i) / c0 * 100).toFixed(2)]); }
   const unit = state.ccy === "USD" ? "USD" : "CHF";
-  $("perf-sub").textContent = `${unit}. Total return uses prices adjusted for dividends and splits. Drag or pinch to zoom.`;
+  $("perf-sub").textContent = `In ${unit}, both rebased to 100 on ${fmtDate(T[i0])}. The gap is the contribution of reinvested dividends. Drag or pinch to zoom.`;
   getChart("c-price").setOption(base({
     legend: { top: 0, left: 0, textStyle: { color: theme.ink2 } },
     grid: { left: 52, right: 16, top: 30, bottom: 60 },
     xAxis: timeAxis(), yAxis: valAxis({ type: state.scale, axisLabel: { color: theme.muted } }),
     dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 8, borderColor: theme.line, textStyle: { color: theme.muted } }],
-    tooltip: Object.assign(base().tooltip, { valueFormatter: v => v.toFixed(2) + " " + unit }),
+    tooltip: Object.assign(base().tooltip, { valueFormatter: v => v.toFixed(1) }),
     series: [
-      { name: "Closing price", type: "line", data: pr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
-      { name: "Total return", type: "line", data: tr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, type: [5, 3], color: theme.accent2 }, itemStyle: { color: theme.accent2 } },
+      { name: "Price index", type: "line", data: pr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "Total-return index", type: "line", data: tr, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, type: [5, 3], color: theme.accent2 }, itemStyle: { color: theme.accent2 } },
     ],
   }), true);
 
@@ -724,7 +725,7 @@ function renderEff() {
   $("t-eff").innerHTML = `<tr><th>Test (full sample, USD)</th><th>Statistic</th><th>z</th><th>p-value</th><th>Holm p</th></tr>` +
     e.tests.map(x => `<tr><td>${x.test}</td><td>${fmtNum(x.stat, 3)}</td><td>${x.z == null ? "–" : fmtNum(x.z, 2)}</td><td>${pv(x.p)}</td>` +
       `<td class="${x.holm < 0.05 ? "neg" : ""}">${pv(x.holm)}</td></tr>`).join("");
-  $("ma-sub").textContent = `Invested when the previous close is above its moving average, otherwise in T-bills; 0.10% cost per switch. Common period from ${fmtDate(Date.parse(e.ma_start))}, USD.`;
+  $("ma-sub").textContent = `The position for each day is decided with closing prices up to the previous day (no future information) and executed at that close; otherwise in T-bills; 0.10% cost per switch. Common period from ${fmtDate(Date.parse(e.ma_start))}, USD.`;
   $("t-ma").innerHTML = `<tr><th>Rule</th><th>Ann. return</th><th>Volatility</th><th>Sharpe</th><th>Max. drawdown</th><th>Switches</th><th>Invested</th></tr>` +
     e.ma_sensitivity.map(x => `<tr><td>${typeof x.window === "number" ? x.window + "-day average" : x.window}</td><td>${fmtPct(x.cagr)}</td><td>${fmtPct(x.vol)}</td>` +
       `<td>${fmtNum(x.sharpe)}</td><td>${fmtPct(x.mdd)}</td><td>${x.switches}</td><td>${fmtPct(x.invested, 0)}</td></tr>`).join("");

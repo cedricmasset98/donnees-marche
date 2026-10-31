@@ -16,12 +16,15 @@ import shutil
 import subprocess
 from datetime import date
 
+import logging
+
 import jinja2
 import numpy as np
 import pandas as pd
 import matplotlib
 
 matplotlib.use("Agg")
+logging.getLogger("fontTools").setLevel(logging.ERROR)   # cmr10 has zero timestamps: harmless warnings
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
@@ -445,6 +448,14 @@ def garch_fit(x, start=None):
     return res.x, res
 
 
+def garch_fit_zero(x, start=None):
+    """GARCH(1,1)-t with the conditional mean fixed at zero (estimated as such, not imposed afterwards)."""
+    x0 = start if start is not None else [0.05 * np.var(x), 0.08, 0.90, 6.0]
+    bounds = [(1e-6, 5), (1e-4, 0.5), (0.5, 0.9995), (2.1, 100)]
+    res = optimize.minimize(lambda q: garch_nll(np.r_[0.0, q], x), x0, method="L-BFGS-B", bounds=bounds)
+    return np.r_[0.0, res.x], res
+
+
 def num_hessian(f, p, h=1e-4):
     p = np.asarray(p, float)
     n = len(p)
@@ -482,13 +493,24 @@ pos_bt = np.arange(n_all - len(bt_idx), n_all)
 g_fore = np.empty(len(pos_bt))
 g_nu_t = np.empty(len(pos_bt))
 g_mu_t = np.empty(len(pos_bt))
+z_s2 = np.empty(len(pos_bt))                 # zero-mean model: one-step variance (%^2)
+z_nu_t = np.empty(len(pos_bt))
+z_lr = np.empty(len(pos_bt))                 # zero-mean model: long-run variance (%^2)
+z_pers = np.empty(len(pos_bt))
 years_bt = bt_idx.year
-prev = None
+prev, prev0 = None, None
 for yr in np.unique(years_bt):
     mask = years_bt == yr
     first_pos = pos_bt[mask][0]
     par, _ = garch_fit(x_pct[:first_pos], start=prev)
     prev = par
+    par0, _ = garch_fit_zero(x_pct[:first_pos], start=prev0)
+    prev0 = par0[1:]
+    _, s2z = garch_var(par0, x_pct)
+    z_s2[mask] = s2z[pos_bt[mask]]
+    z_nu_t[mask] = par0[4]
+    z_lr[mask] = par0[1] / (1 - par0[2] - par0[3])
+    z_pers[mask] = par0[2] + par0[3]
     # variance for day t uses returns up to t-1: run the filter on x[:t] and step once
     # s2[t] depends only on returns up to t-1: it is the one-step-ahead forecast for day t
     _, s2 = garch_var(par, x_pct)
@@ -504,10 +526,13 @@ for lvl in (0.05, 0.01):
     # Zero conditional mean, standard at a one-day horizon. The ML location estimate of a
     # symmetric Student-t lies well above the sample mean when returns are negatively
     # skewed, which would push the VaR up; that variant is reported as a sensitivity check.
-    garch_q = g_fore * q_t / 100
-    garch_q_mle = (g_mu_t + g_fore * q_t) / 100
+    q_z = stats.t.ppf(lvl, z_nu_t) * np.sqrt((z_nu_t - 2) / z_nu_t)
+    garch_q = np.sqrt(z_s2) * q_z / 100                 # main: model estimated with zero mean
+    garch_q_mle = (g_mu_t + g_fore * q_t) / 100         # variant: ML mean kept
+    garch_q_sub = g_fore * q_t / 100                    # variant: ML parameters, mean set to zero ex post
     var_methods[lvl] = {"Historical (250 days)": hist, "Normal (250 days)": norm, "GARCH(1,1)-t": garch_q}
     var_methods.setdefault("mle_mean", {})[lvl] = garch_q_mle
+    var_methods.setdefault("mean_sub", {})[lvl] = garch_q_sub
 
 
 def kupiec(hits, p):
@@ -548,6 +573,69 @@ for lvl in (0.05, 0.01):
         bt_rows.append((lvl, name, hits.mean(), int(hits.sum()), p_uc, p_ind, p_cc))
 n_bt = len(pos_bt)
 
+# GARCH mean specification: three variants of the same backtest
+mean_rows = []
+for lvl in (0.05, 0.01):
+    for name, q in [("Zero mean, estimated as such (main)", var_methods[lvl]["GARCH(1,1)-t"]),
+                    ("ML mean kept", var_methods["mle_mean"][lvl]),
+                    ("ML parameters, mean set to zero afterwards", var_methods["mean_sub"][lvl])]:
+        hits = realised < q
+        lr_uc, p_uc = kupiec(hits, lvl)
+        lr_ind, p_ind = christoffersen(hits)
+        mean_rows.append((lvl, name, hits.mean(), int(hits.sum()), p_uc, p_ind, stats.chi2.sf(lr_uc + lr_ind, 2)))
+
+# Out-of-sample evaluation of variance forecasts (Patton, 2011): QLIKE and MSE,
+# one day ahead (proxy: squared return) and 21 days ahead (proxy: realised variance)
+EW_L = 0.94
+ew_s2 = np.empty(len(x_pct))
+ew_s2[0] = np.mean(x_pct[:25] ** 2)
+for t_ in range(1, len(x_pct)):
+    ew_s2[t_] = EW_L * ew_s2[t_ - 1] + (1 - EW_L) * x_pct[t_ - 1] ** 2
+hist_s2 = np.array([np.var(x_pct[p_ - WIN:p_], ddof=1) for p_ in pos_bt])
+fc1 = {"Historical variance (250 days)": hist_s2, "EWMA (lambda = 0.94)": ew_s2[pos_bt], "GARCH(1,1)-t": z_s2}
+H21 = 21
+valid = np.arange(len(pos_bt) - H21 + 1)
+x2 = x_pct ** 2
+rv21 = np.array([x2[pos_bt[j]:pos_bt[j] + H21].sum() for j in valid])
+k_ = np.arange(H21)
+garch21 = np.array([np.sum(z_lr[j] + z_pers[j] ** k_ * (z_s2[j] - z_lr[j])) for j in valid])
+fc21 = {"Historical variance (250 days)": H21 * hist_s2[valid], "EWMA (lambda = 0.94)": H21 * ew_s2[pos_bt][valid],
+        "GARCH(1,1)-t": garch21}
+
+
+def qlike(proxy, h):
+    return np.log(h) + proxy / h
+
+
+def mse(proxy, h):
+    return (proxy - h) ** 2
+
+
+def dm_test(d, lags):
+    """Diebold-Mariano test with a Newey-West long-run variance."""
+    d = np.asarray(d) - 0.0
+    T_ = len(d)
+    m_ = d.mean()
+    e = d - m_
+    lrv = np.sum(e ** 2) / T_
+    for L in range(1, lags + 1):
+        lrv += 2 * (1 - L / (lags + 1)) * np.sum(e[L:] * e[:-L]) / T_
+    z = m_ / np.sqrt(lrv / T_)
+    return z, 2 * stats.norm.sf(abs(z))
+
+
+proxy1 = x2[pos_bt]
+fe_rows = []
+for hname, fc, proxy, lags in [("1 day", fc1, proxy1, 5), ("21 days", fc21, rv21, 25)]:
+    ql = {k: qlike(proxy, f) for k, f in fc.items()}
+    ms = {k: mse(proxy, f) for k, f in fc.items()}
+    ranks = {k: r + 1 for r, k in enumerate(sorted(ql, key=lambda k: ql[k].mean()))}
+    base_ql = ql["EWMA (lambda = 0.94)"]
+    for k in fc:
+        z_dm, p_dm = (None, None) if k.startswith("EWMA") else dm_test(ql[k] - base_ql, lags)
+        fe_rows.append((hname, k, ql[k].mean(), ms[k].mean(), ranks[k], z_dm, p_dm))
+fe = {(h, k): (q, m_, r, z, p) for h, k, q, m_, r, z, p in fe_rows}
+
 # Sensitivity of the moving-average rule and paired block bootstrap
 ma_windows = (50, 100, 150, 200, 250)
 ma_start = px.index[249 + 1]                # first day on which every window is available
@@ -555,9 +643,11 @@ r_common = r_tr.loc[ma_start:]
 rf_common = rf.loc[r_common.index]
 
 
-def ma_returns(w):
+def ma_returns(w, lag=1):
+    """lag=1: signal from the close of t-1, position earns the return of day t (trade at that close).
+    lag=2: one more day of delay, the position changes at the close of the next session."""
     ma = px.rolling(w).mean()
-    s = (px > ma).astype(float).shift(1).reindex(r_common.index)
+    s = (px > ma).astype(float).shift(lag).reindex(r_common.index)
     sw = s.diff().abs().fillna(0)
     return s * r_common + (1 - s) * rf_common - sw * TRANSACTION_COST, int(sw.sum()), s.mean()
 
@@ -567,6 +657,10 @@ for w in ma_windows:
     rr, nsw, inv = ma_returns(w)
     ma_sens.append((w, metrics(rr, rf_common), nsw, inv))
 bh_common = metrics(r_common, rf_common)
+ma_lag = []
+for w in ma_windows:
+    rr2, nsw2, inv2 = ma_returns(w, lag=2)
+    ma_lag.append((w, metrics(rr2, rf_common)))
 
 
 def block_bootstrap_idx(n, block, reps, rng):
@@ -609,6 +703,33 @@ boot_ploss = {}
 for h, name in [(12, "1 year"), (60, "5 years"), (120, "10 years")]:
     sims = stationary_bootstrap_sums(lm, h, 20000, 12, rng)
     boot_ploss[name] = (sims < 0).mean()
+
+rng = np.random.default_rng(RNG_SEED)
+block_sens = {}
+for mb in (1, 6, 12, 24, 36):
+    block_sens[mb] = {name: (stationary_bootstrap_sums(lm, h, 20000, mb, rng) < 0).mean()
+                      for h, name in [(12, "1 year"), (60, "5 years"), (120, "10 years")]}
+mc_se = {name: np.sqrt(p_ * (1 - p_) / 20000) for name, p_ in boot_ploss.items()}
+
+# Parametric view: i.i.d. normal monthly log returns; uncertainty about the mean only
+mu_m, sd_m = lm.mean(), lm.std(ddof=1)
+se_mu = sd_m / np.sqrt(len(lm))
+param_ploss = {}
+for h, name in [(12, "1 year"), (60, "5 years"), (120, "10 years")]:
+    f = lambda m_: stats.norm.cdf(-m_ * np.sqrt(h) / sd_m)
+    param_ploss[name] = (f(mu_m), f(mu_m + 1.96 * se_mu), f(mu_m - 1.96 * se_mu))
+
+# Variance decomposition: implied monthly/daily variance ratio from daily autocorrelations
+q21 = 21
+rho_d = acf(r_tr.values, q21 - 1)
+vr_implied = 1 + 2 * np.sum((1 - np.arange(1, q21) / q21) * rho_d)
+r_mo = tr_m.pct_change().dropna()
+vr_observed = (vol_freq[2][2] / vol_freq[0][2]) ** 2
+k_mo = stats.kurtosis(r_mo, fisher=False)
+var_se_rel = np.sqrt(2 / (len(r_mo) - 1) + (k_mo - 3) / len(r_mo))   # relative SE of the sample variance
+vol_m_lo = vol_freq[2][2] * np.sqrt(max(1 - 1.96 * var_se_rel, 0))
+vol_m_hi = vol_freq[2][2] * np.sqrt(1 + 1.96 * var_se_rel)
+vr_obs_lo, vr_obs_hi = (vol_m_lo / vol_freq[0][2]) ** 2, (vol_m_hi / vol_freq[0][2]) ** 2
 
 # Sensitivity to the starting date (to the last close)
 start_sens = pd.Series({d: (tr.iloc[-1] / v) ** (365.25 / (idx[-1] - d).days) - 1
@@ -774,14 +895,15 @@ def year_axis(ax, step=2):
 
 
 def c_price():
-    fig, ax = plt.subplots(figsize=(W, 2.15))
-    ax.plot(px.index, px, color=BLUE, lw=1.0, label="Closing price")
-    ax.plot(tr.index, tr, color=ORANGE, lw=1.0, ls="--", label="Total return (adjusted price)")
+    fig, ax = plt.subplots(figsize=(W, 2.6))
+    ip, it = px / px.iloc[0] * 100, tr / tr.iloc[0] * 100
+    ax.plot(ip.index, ip, color=BLUE, lw=1.0, label=f"Price index (ends at {ip.iloc[-1]:.0f})")
+    ax.plot(it.index, it, color=ORANGE, lw=1.0, ls="--", label=f"Total-return index (ends at {it.iloc[-1]:.0f})")
     ax.set_yscale("log")
-    ax.set_yticks([20, 30, 40, 60, 80, 100, 150])
+    ax.set_yticks([50, 75, 100, 150, 200, 300, 400, 500])
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}"))
     ax.yaxis.set_minor_formatter(FuncFormatter(lambda v, _: ""))
-    ax.set_ylabel("USD (log scale)")
+    ax.set_ylabel(f"Index, {dt(idx[0])} = 100 (log scale)")
     year_axis(ax)
     ax.legend(loc="upper left")
     save(fig, "price")
@@ -1037,12 +1159,14 @@ v["takeaways"] = [
     f"The Sharpe ratio of {tn(full['sharpe'])} has a 95\\% confidence interval of {ci(full)}: eighteen years of "
     "data are barely enough to distinguish it from zero.",
     f"Daily returns have fat tails (kurtosis {tn(kurt, 1)}) and strongly persistent volatility (GARCH persistence "
-    f"{num(g_persist, 3)}, half-life of about {num(g_half_life, 0)} trading days). A GARCH(1,1)-$t$ model forecasts "
-    "the 5\\% Value at Risk well out of sample; rolling historical and normal VaR do not, because their breaches "
-    "cluster.",
-    f"After correcting for multiple testing, the only departure from a random walk is a small negative "
-    f"autocorrelation of daily returns ({tn(ac_freq[0][2], 3)}); it vanishes at weekly and monthly frequencies. "
-    "No calendar effect is significant, and a 200-day moving-average rule underperformed buy and hold.",
+    f"{num(g_persist, 3)}, half-life of about {num(g_half_life, 0)} trading days). Out of sample, a GARCH(1,1)-$t$ "
+    "model gives the best variance forecasts by the QLIKE criterion, but its edge over a simple EWMA is not "
+    "statistically significant. It passes the 5\\% VaR backtest, unlike rolling historical and normal VaR, whose "
+    "breaches cluster.",
+    f"After correcting for multiple testing, the only rejection of the random walk is a small negative "
+    f"autocorrelation of daily returns ({tn(ac_freq[0][2], 3)}), not detectable at weekly and monthly frequencies. "
+    "No calendar effect is detected, and moving-average timing rules underperformed buy and hold whatever the "
+    "window and execution lag.",
     f"For a Swiss franc investor, the weaker dollar cut the annualised return by {tp(full['cagr'] - cagr_chf)} "
     f"({tp(cagr_chf)} in CHF), before taxes.",
 ]
@@ -1068,11 +1192,15 @@ v["vol_text"] = (
     "The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by "
     "$\\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated "
     f"(Section~3), so daily data annualised with $\\sqrt{{252}}$ give {tp(vol_freq[0][2])}, whereas monthly data "
-    f"give {tp(vol_freq[2][2])}. The ratio of the two variances, "
-    f"{num((vol_freq[2][2] / vol_freq[0][2]) ** 2, 2)}, is of the same order as the variance ratio estimated "
-    f"in Section~3 at a 20-day horizon ({num(vr_rows[-1][1], 2)}), given the sampling error of only "
-    f"{vol_freq[2][1]} monthly observations. This report therefore uses monthly returns for annualised volatility and for the Sharpe and Sortino "
-    "ratios.")
+    f"give {tp(vol_freq[2][2])}.\n\n"
+    "The variance of a sum of $q$ daily returns decomposes into variances and autocovariances:\n"
+    "\\[ \\operatorname{Var}\\Big(\\sum_{k=1}^{q} r_k\\Big) = q\\,\\gamma_0\\Big[1 + 2\\sum_{k=1}^{q-1}\\Big(1 - \\frac{k}{q}\\Big)\\rho_k\\Big]. \\]\n"
+    f"With the first 20 daily autocorrelations, the bracket equals {num(vr_implied, 2)} for $q = 21$: serial "
+    f"dependence alone would reduce the monthly variance to {tp(vr_implied, 0)} of 21 times the daily variance. "
+    f"The observed ratio is {num(vr_observed, 2)}, with a 95\\% interval of about [{num(vr_obs_lo, 2)}, "
+    f"{num(vr_obs_hi, 2)}] from the sampling error of {vol_freq[2][1]} monthly variances (kurtosis of monthly returns "
+    f"{num(k_mo, 1)}). Autocorrelation thus explains most of the gap, and the remainder is within estimation error. "
+    "This report uses monthly returns for annualised volatility and for the Sharpe and Sortino ratios.")
 pos = {d: i for i, d in enumerate(idx)}
 v["dd_rows"] = [[dt(s_), dt(t), dt(e) if e is not None else "--", tp(d),
                  str(pos[t] - pos[s_]), str(pos[e] - pos[t]) if e is not None else "not yet"]
@@ -1131,7 +1259,7 @@ v["bt_text"] = (
     "\\citet{christoffersen1998} rejects them decisively. At 1\\%, both also fail the unconditional coverage test "
     f"of \\citet{{kupiec1995}}: {tp(bt[(0.01, 'Historical (250 days)')][0], 2)} and "
     f"{tp(bt[(0.01, 'Normal (250 days)')][0], 2)} of breaches instead of 1\\%. "
-    f"The GARCH(1,1)-$t$ forecasts pass both tests at 5\\% (breach rate {tp(g5[0], 2)}; $p$-values "
+    f"The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\\% (breach rate {tp(g5[0], 2)}; $p$-values "
     f"{tpv(g5[1])} and {tpv(g5[2])}). At 1\\%, their breach rate of {tp(g1[0], 2)} is acceptable "
     f"($p = {tpv(g1[1])}$), but extreme losses still arrive in clusters ($p = {tpv(g1[2])}$ for independence). A "
     "symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an "
@@ -1140,11 +1268,42 @@ v["bt_note"] = (
     f"One-day VaR on daily log returns, forecasts from {dt(bt_idx[0])} to {dt(bt_idx[-1])} ({n_bt:,} days), each "
     "using only information available the day before. Historical and normal VaR use a 250-day rolling window. "
     "GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional "
-    "variance is updated daily. The GARCH forecasts use a zero conditional mean, standard at a one-day horizon; with "
-    f"the maximum-likelihood location estimate instead ({num(g_mu, 3)}\\% a day, well above the sample mean of "
-    f"{num(lr_tr.mean() * 100, 3)}\\% because of negative skewness), the breach rates rise to "
-    f"{tp(mle_breach[0.05], 2)} and {tp(mle_breach[0.01], 2)}. Kupiec: unconditional coverage; Christoffersen: "
-    "independence; CC: conditional coverage (joint).")
+    "variance is updated daily. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional "
+    "coverage (joint).")
+v["mean_rows"] = [[tp(l, 0), name, tp(rate, 2), f"{k} / {num(l * n_bt, 0)}", tpv(puc), tpv(pind), tpv(pcc)]
+                  for l, name, rate, k, puc, pind, pcc in mean_rows]
+mr = {(l, n_): rate for l, n_, rate, *_ in mean_rows}
+v["mean_text"] = (
+    "The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-"
+    f"likelihood location estimate ({num(g_mu, 3)}\\% a day) lies well above the sample mean "
+    f"({num(lr_tr.mean() * 100, 3)}\\%), because negative skewness pulls the mean below the centre of the "
+    "distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to "
+    f"{tp(mr[(0.05, 'ML mean kept')], 2)} and {tp(mr[(0.01, 'ML mean kept')], 2)}, which the coverage tests reject. "
+    "The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a "
+    "one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the "
+    "conclusion rests on the treatment of the mean, not on how it is imposed.")
+fe_names = ["Historical variance (250 days)", "EWMA (lambda = 0.94)", "GARCH(1,1)-t"]
+fe_lbl = {"Historical variance (250 days)": "Historical variance (250 days)", "EWMA (lambda = 0.94)": "EWMA ($\\lambda = 0.94$)",
+          "GARCH(1,1)-t": "GARCH(1,1)-$t$"}
+v["fe_rows"] = [[h, fe_lbl[k], num(fe[(h, k)][0], 3), num(fe[(h, k)][1], 1), str(fe[(h, k)][2]),
+                 "--" if fe[(h, k)][3] is None else tn(fe[(h, k)][3], 2),
+                 "--" if fe[(h, k)][4] is None else tpv(fe[(h, k)][4])]
+                for h in ("1 day", "21 days") for k in fe_names]
+g1d, g21 = fe[("1 day", "GARCH(1,1)-t")], fe[("21 days", "GARCH(1,1)-t")]
+mse_best21 = min(fe_names, key=lambda k: fe[("21 days", k)][1])
+v["ac_r2"] = tp(ac_freq[0][2] ** 2, 1)
+v["fe_text"] = (
+    "A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are "
+    "also compared directly, out of sample, over the same period. QLIKE, $\\log h_t + \\hat\\sigma_t^2/h_t$, and the "
+    "mean squared error are both robust to noise in the variance proxy \\citep{patton2011}; QLIKE penalises "
+    "under-prediction of risk more heavily and is less dominated by a few extreme days. "
+    f"By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \\citep{{diebold1995}} against EWMA gives "
+    f"$p = {tpv(g1d[4])}$ at one day and $p = {tpv(g21[4])}$ at 21 days: the improvement over a model with a "
+    "single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted "
+    f"250-day variance ($p$ {tpv(fe[('1 day', 'Historical variance (250 days)')][4])}), and GARCH has a lower loss still. "
+    + (f"By MSE, the ranking changes at 21 days ({fe_lbl[mse_best21].replace('Historical variance (250 days)', 'the 250-day historical variance')} first), because squared errors are "
+       "dominated by the few crisis months." if mse_best21 != "GARCH(1,1)-t" else "MSE gives the same ranking.")
+    + " The richer model helps describe volatility, but its forecasting advantage is modest.")
 
 # ---------------------------------------------------------------- 3. Efficiency
 v["ac_rows"] = [[name, f"{n:,}", tn(r1, 3), tn(t, 2), tn(ac_rob[name][1], 2), tpv(ac_rob[name][2]),
@@ -1162,8 +1321,9 @@ v["vr_rows"] = [[str(q), num(vr, 3), tn(z, 2), tpv(p), tpv(holm_adj[("vr", q)]),
                  "not rejected" if holm_adj[("vr", q)] >= 0.05 else ("mean reversion" if vr < 1 else "persistence")]
                 for q, vr, z, p in vr_rows]
 v["mt_text"] = (
-    f"Section~3 reports {n_family} hypothesis tests. At the 5\\% level, about one false rejection is expected by "
-    "chance alone, so each $p$-value is also adjusted with the step-down procedure of \\citet{holm1979}, which "
+    f"Section~3 reports {n_family} hypothesis tests. If all null hypotheses were true and the tests independent, "
+    f"{num(n_family * 0.05, 1)} false rejections would be expected at the 5\\% level, and the probability of at "
+    f"least one would be about {tp(1 - 0.95 ** n_family, 0)}. Each $p$-value is also adjusted with the step-down procedure of \\citet{{holm1979}}, which "
     f"controls the probability of any false rejection. {n_raw_sig} tests are significant before adjustment and "
     f"{n_holm_sig} after. Both remaining rejections concern the same first-order daily autocorrelation, since "
     "$VR(2) \\approx 1 + \\hat\\rho_1$.")
@@ -1183,16 +1343,19 @@ v["ma"] = [[tp(m_bh["cagr"]), tp(m_ma["cagr"])], [tp(m_bh["vol"]), tp(m_ma["vol"
            [f"{tn(m_bh['sharpe'])} {ci(m_bh)}", f"{tn(m_ma['sharpe'])} {ci(m_ma)}"],
            [tp(m_bh["mdd"]), tp(m_ma["mdd"])],
            [f"USD {num(val_bh.iloc[-1] * cap, 0)}", f"USD {num(val_ma.iloc[-1] * cap, 0)}"]]
-v["ma_sens_rows"] = ([[f"{w} days", tp(m["cagr"]), tp(m["vol"]), tn(m["sharpe"]), tp(m["mdd"]), str(nsw),
-                       tp(inv, 0)] for w, m, nsw, inv in ma_sens]
-                     + [["Buy and hold", tp(bh_common["cagr"]), tp(bh_common["vol"]), tn(bh_common["sharpe"]),
-                         tp(bh_common["mdd"]), "0", "100\\%"]])
+lagd = dict(ma_lag)
+v["ma_sens_rows"] = ([[f"{w} days", tp(m["cagr"]), tp(lagd[w]["cagr"]), tp(m["vol"]), tn(m["sharpe"]), tp(m["mdd"]),
+                       str(nsw), tp(inv, 0)] for w, m, nsw, inv in ma_sens]
+                     + [["Buy and hold", tp(bh_common["cagr"]), tp(bh_common["cagr"]), tp(bh_common["vol"]),
+                         tn(bh_common["sharpe"]), tp(bh_common["mdd"]), "0", "100\\%"]])
 v["ma_note"] = (
-    "Rule: invested in VT when the previous day's close is above its moving average, otherwise held in T-bills; "
-    f"switches are executed at that same close and cost {tp(TRANSACTION_COST, 2)} each. All windows are compared "
+    "Rule: the position earning the return of day $t$ is decided with prices up to the close of day $t-1$, so no "
+    "future information is used. The main case assumes the trade is executed at that same close (a market-on-close "
+    "order placed just before the close); the delayed case executes one session later. Out of the market, the "
+    f"rule earns the T-bill rate; each switch costs {tp(TRANSACTION_COST, 2)}. All windows are compared "
     f"over the same period, starting {dt(r_common.index[0])}, the first day on which a 250-day average is "
     "available.")
-all_under = all(m["cagr"] < bh_common["cagr"] for _, m, _, _ in ma_sens)
+all_under = all(m["cagr"] < bh_common["cagr"] for _, m, _, _ in ma_sens) and all(m["cagr"] < bh_common["cagr"] for _, m in ma_lag)
 v["ma_text"] = (
     f"{'Every window underperformed' if all_under else 'Most windows underperformed'} buy and hold, by {tp(bh_common['cagr'] - max(m['cagr'] for _, m, _, _ in ma_sens))} "
     f"to {tp(bh_common['cagr'] - min(m['cagr'] for _, m, _, _ in ma_sens))} a year, while reducing the maximum "
@@ -1200,7 +1363,10 @@ v["ma_text"] = (
     f"confidence interval of [{tp(diff_lo)}, {tp(diff_hi)}] for the annual return gap ($p = {tpv(diff_p)}$): the "
     "underperformance is borderline significant. The sample starts in mid-2009, after the financial-crisis crash "
     "that such rules are designed to avoid, which works against them; a longer index history would be needed for "
-    "a fair assessment. Late and repeated signals (``whipsaws'') are costly in a market that recovers quickly.")
+    "a fair assessment. Late and repeated signals (``whipsaws'') are costly in a market that recovers quickly. "
+    "Delaying execution by one session changes the results by up to "
+    f"{tp(max(abs(lagd[w]['cagr'] - m['cagr']) for w, m, _, _ in ma_sens))} a year, in both directions: the "
+    "ranking of windows is fragile, but the underperformance against buy and hold is not.")
 
 # ---------------------------------------------------------------- 4. Investor
 v["roll_rows"] = [[name, str(n), tp(pl, 0), tp(boot_ploss[name], 0), f"{tp(mn)} ({mon(dmn)})", tp(med), tp(mx)]
@@ -1210,8 +1376,19 @@ v["roll_text"] = (
     "about one and a half independent periods, none of which happened to lose money. A stationary bootstrap "
     f"\\citep{{politis1994}} that resamples blocks of monthly returns (mean length 12 months, 20,000 paths) "
     f"gives a more defensible estimate: {tp(boot_ploss['5 years'], 0)} over five years and "
-    f"{tp(boot_ploss['10 years'], 0)} over ten. The bootstrap still assumes that the next decades resemble the "
-    "past eighteen years.")
+    f"{tp(boot_ploss['10 years'], 0)} over ten.\n\n"
+    f"These figures are fragile. The Monte Carlo error is negligible (about {num(mc_se['10 years'] * 100, 1)} "
+    "percentage point), but the estimate depends on the assumed block length, which governs how much of the "
+    "slow-moving dependence in returns is preserved: from "
+    f"{tp(min(b_['10 years'] for b_ in block_sens.values()), 0)} to {tp(max(b_['10 years'] for b_ in block_sens.values()), 0)} "
+    "over ten years across the block lengths tested. Above all, no resampling scheme can capture the uncertainty "
+    "about the true expected return. Treating monthly log returns as independent and normal, the probability of a "
+    f"ten-year loss is {tp(param_ploss['10 years'][0], 0)}; moving the mean return to either end of its 95\\% "
+    f"confidence interval gives {tp(param_ploss['10 years'][1], 1)} to {tp(param_ploss['10 years'][2], 0)}. "
+    "Eighteen years of data simply do not pin down the long-run probability of loss.")
+v["block_rows"] = [[("1 (i.i.d.)" if mb == 1 else str(mb)) + (" (main)" if mb == 12 else ""),
+                    tp(bs["1 year"], 0), tp(bs["5 years"], 0), tp(bs["10 years"], 1)] for mb, bs in block_sens.items()]
+v["param_rows"] = [[name, tp(p0, 0), tp(plo, 1), tp(phi, 0)] for name, (p0, plo, phi) in param_ploss.items()]
 lo_y = min(start_sens_annual, key=start_sens_annual.get)
 hi_y = max(start_sens_annual, key=start_sens_annual.get)
 v["start_text"] = (
