@@ -741,10 +741,10 @@ function renderFx() {
     chf.push([T[i], +(A[i] * FX[i] / (A[i0] * FX[i0]) * 100).toFixed(2)]);
     fx.push([T[i], FX[i]]);
   }
-  getChart("c-fx").setOption(base({ grid: { left: 46, right: 52, top: 30, bottom: 52 },
+  getChart("c-fx").setOption(base({ grid: { left: 46, right: 52, top: 52, bottom: 52 },
     xAxis: timeAxis(),
-    yAxis: [valAxis({ name: "Index", nameTextStyle: { color: theme.muted } }),
-            { type: "value", scale: true, name: "USD/CHF", nameTextStyle: { color: theme.muted }, axisLabel: { color: theme.muted }, splitLine: { show: false } }],
+    yAxis: [valAxis({ name: "Index (start = 100)", nameLocation: "end", nameGap: 12, nameTextStyle: { color: theme.muted, align: "left", padding: [0, 0, 0, -40] } }),
+            { type: "value", scale: true, name: "USD/CHF", nameLocation: "end", nameGap: 12, nameTextStyle: { color: theme.muted, align: "right", padding: [0, -46, 0, 0] }, axisLabel: { color: theme.muted }, splitLine: { show: false } }],
     dataZoom: [{ type: "inside" }, { type: "slider", height: 18, bottom: 6, borderColor: theme.line, textStyle: { color: theme.muted } }],
     series: [
       { name: "VT in USD", type: "line", data: usd, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
