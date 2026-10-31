@@ -21,6 +21,7 @@
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{float}
 \usepackage[round]{natbib}
 \usepackage{needspace}
@@ -89,6 +90,7 @@ Sharpe ratio, 95\% confidence interval (average risk-free rate 1.4\%) & 0.50 [0.
 Sortino ratio & 0.73 \\
 Maximum drawdown (total return) & $-$50.3\% (trough on 09 Mar 2009) \\
 Calmar ratio & 0.17 \\
+Kelly exposure with borrowing spread, in-sample (block-bootstrap 95\% interval) & 1.81x [0.24x, 4.28x] \\
 Probability of loss over 1 / 5 / 10 years: historical windows & 22\% / 0\% / 0\% \\
 Probability of loss over 1 / 5 / 10 years: block bootstrap & 24\% / 10\% / 4\% \\
 \bottomrule
@@ -102,6 +104,7 @@ Probability of loss over 1 / 5 / 10 years: block bootstrap & 24\% / 10\% / 4\% \
   \item The Sharpe ratio of 0.50 has a 95\% confidence interval of [0.02, 0.99]: eighteen years of data are barely enough to distinguish it from zero.
   \item Daily returns have fat tails (kurtosis 16.1) and strongly persistent volatility (GARCH persistence 0.993, half-life of about 96 trading days). Out of sample, a GARCH(1,1)-$t$ model gives the best variance forecasts by the QLIKE criterion, but its edge over a simple EWMA is not statistically significant. It passes the 5\% VaR backtest, unlike rolling historical and normal VaR, whose breaches cluster.
   \item After correcting for multiple testing, the only rejection of the random walk is a small negative autocorrelation of daily returns ($-$0.105), not detectable at weekly and monthly frequencies. No calendar effect is detected, and moving-average timing rules underperformed buy and hold whatever the window and execution lag.
+  \item In hindsight, a Kelly exposure of about 1.81x would have maximised growth after borrowing costs, but its 95\% bootstrap interval runs from 0.24x to 4.28x and a real-time estimate did not beat buy and hold. Leverage raised the drawdown of 2008--2009 from 50\% to 80\% at 2x, and the compounding gap cost 4.2\% a year at that exposure.
   \item For a Swiss franc investor, the weaker dollar cut the annualised return by 1.3\% (7.4\% in CHF), before taxes.
 \end{itemize}
 
@@ -244,7 +247,7 @@ $\mu$ (\% per day) & 0.0846 & 0.0110 \\
 $\omega$ & 0.0199 & 0.0041 \\
 $\alpha$ & 0.1345 & 0.0134 \\
 $\beta$ & 0.8583 & 0.0125 \\
-$\nu$ (degrees of freedom) & 6.1515 & 0.5502 \\
+$\nu$ (degrees of freedom) & 6.1515 & 0.5503 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -268,16 +271,16 @@ The model $\sigma_t^2 = \omega + \alpha\,\varepsilon_{t-1}^2 + \beta\,\sigma_{t-
 \midrule
 5\% & Historical (250 days) & 5.20\% & 214 / 206 & 0.558 & $<$ 0.001 & $<$ 0.001 \\
 5\% & Normal (250 days) & 5.22\% & 215 / 206 & 0.511 & $<$ 0.001 & $<$ 0.001 \\
-5\% & GARCH(1,1)-t & 5.30\% & 218 / 206 & 0.385 & 0.877 & 0.678 \\
+5\% & GARCH(1,1)-t & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
 1\% & Historical (250 days) & 1.36\% & 56 / 41 & 0.027 & $<$ 0.001 & $<$ 0.001 \\
 1\% & Normal (250 days) & 2.38\% & 98 / 41 & $<$ 0.001 & $<$ 0.001 & $<$ 0.001 \\
-1\% & GARCH(1,1)-t & 1.29\% & 53 / 41 & 0.075 & 0.005 & 0.004 \\
+1\% & GARCH(1,1)-t & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 \note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
 
-Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\% (breach rate 5.30\%; $p$-values 0.385 and 0.877). At 1\%, their breach rate of 1.29\% is acceptable ($p = 0.075$), but extreme losses still arrive in clusters ($p = 0.005$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
+Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\% (breach rate 5.25\%; $p$-values 0.467 and 0.410). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
 
 \begin{table}[H]
 \small
@@ -286,16 +289,16 @@ Rolling historical and normal VaR react slowly to changes in volatility. Their b
 \toprule
 \textbf{Level} & \textbf{Mean specification} & \textbf{Breach rate} & \textbf{Breaches / exp.} & \textbf{Kupiec} & \textbf{Christoff.} & \textbf{CC} \\
 \midrule
-5\% & Zero mean, estimated as such (main) & 5.30\% & 218 / 206 & 0.385 & 0.877 & 0.678 \\
-5\% & ML mean kept & 6.08\% & 250 / 206 & 0.002 & 0.814 & 0.009 \\
-5\% & ML parameters, mean set to zero afterwards & 5.32\% & 219 / 206 & 0.348 & 0.850 & 0.632 \\
-1\% & Zero mean, estimated as such (main) & 1.29\% & 53 / 41 & 0.075 & 0.005 & 0.004 \\
-1\% & ML mean kept & 1.48\% & 61 / 41 & 0.004 & 0.014 & $<$ 0.001 \\
+5\% & Zero mean, estimated as such (main) & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
+5\% & ML mean kept & 6.10\% & 251 / 206 & 0.002 & 0.840 & 0.007 \\
+5\% & ML parameters, mean set to zero afterwards & 5.35\% & 220 / 206 & 0.313 & 0.929 & 0.599 \\
+1\% & Zero mean, estimated as such (main) & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
+1\% & ML mean kept & 1.46\% & 60 / 41 & 0.006 & 0.012 & $<$ 0.001 \\
 1\% & ML parameters, mean set to zero afterwards & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
-The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-likelihood location estimate (0.085\% a day) lies well above the sample mean (0.033\%), because negative skewness pulls the mean below the centre of the distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to 6.08\% and 1.48\%, which the coverage tests reject. The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the conclusion rests on the treatment of the mean, not on how it is imposed.
+The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-likelihood location estimate (0.085\% a day) lies well above the sample mean (0.033\%), because negative skewness pulls the mean below the centre of the distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to 6.10\% and 1.46\%, which the coverage tests reject. The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the conclusion rests on the treatment of the mean, not on how it is imposed.
 
 \keep{16}\subsection{Variance forecasts: out-of-sample comparison}
 \begin{table}[H]
@@ -307,16 +310,16 @@ The specification of the conditional mean matters. With a symmetric Student-$t$ 
 \midrule
 1 day & Historical variance (250 days) & 1.087 & 20.6 & 3 & 3.87 & $<$ 0.001 \\
 1 day & EWMA ($\lambda = 0.94$) & 0.819 & 17.4 & 2 & -- & -- \\
-1 day & GARCH(1,1)-$t$ & 0.795 & 16.2 & 1 & $-$2.20 & 0.028 \\
+1 day & GARCH(1,1)-$t$ & 0.797 & 16.2 & 1 & $-$1.95 & 0.051 \\
 \midrule{}21 days & Historical variance (250 days) & 4.312 & 2,843.1 & 3 & 1.92 & 0.055 \\
 21 days & EWMA ($\lambda = 0.94$) & 4.123 & 2,936.3 & 2 & -- & -- \\
-21 days & GARCH(1,1)-$t$ & 4.050 & 3,318.8 & 1 & $-$1.47 & 0.141 \\
+21 days & GARCH(1,1)-$t$ & 4.058 & 3,338.0 & 1 & $-$1.31 & 0.190 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 \note{Variances in squared percent. Proxy: squared daily return (1 day) and realised variance, the sum of the next 21 squared daily returns (21 days). GARCH: zero-mean model re-estimated each year, multi-step forecasts from its persistence and long-run variance; EWMA and historical variance are held flat over the horizon. Rank by QLIKE. Diebold--Mariano statistics use a Newey--West variance (5 and 25 lags); a negative value favours the model over EWMA.}
 
-A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are also compared directly, out of sample, over the same period. QLIKE, $\log h_t + \hat\sigma_t^2/h_t$, and the mean squared error are both robust to noise in the variance proxy \citep{patton2011}; QLIKE penalises under-prediction of risk more heavily and is less dominated by a few extreme days. By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \citep{diebold1995} against EWMA gives $p = 0.028$ at one day and $p = 0.141$ at 21 days: the improvement over a model with a single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted 250-day variance ($p$ $<$ 0.001), and GARCH has a lower loss still. By MSE, the ranking changes at 21 days (the 250-day historical variance first), because squared errors are dominated by the few crisis months. The richer model helps describe volatility, but its forecasting advantage is modest.
+A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are also compared directly, out of sample, over the same period. QLIKE, $\log h_t + \hat\sigma_t^2/h_t$, and the mean squared error are both robust to noise in the variance proxy \citep{patton2011}; QLIKE penalises under-prediction of risk more heavily and is less dominated by a few extreme days. By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \citep{diebold1995} against EWMA gives $p = 0.051$ at one day and $p = 0.190$ at 21 days: the improvement over a model with a single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted 250-day variance ($p$ $<$ 0.001), and GARCH has a lower loss still. By MSE, the ranking changes at 21 days (the 250-day historical variance first), because squared errors are dominated by the few crisis months. The richer model helps describe volatility, but its forecasting advantage is modest.
 
 % ---------------------------------------------------------------- 3
 \keep{24}
@@ -514,6 +517,201 @@ Investing USD 500 at the end of every month since inception (220 contributions, 
 
 Across the 209 possible monthly starting points, investing a sum all at once beat spreading it over 12 months (with the uninvested cash earning the T-bill rate) in 72\% of cases, with an average advantage of 4.5\% after 12 months. Because the market rises most of the time, waiting costs money on average; averaging in mainly limits the regret of investing just before a decline. The starting points overlap, so this frequency is descriptive rather than a precise probability.
 
+% ---------------------------------------------------------------- 4.5 Kelly
+\keep{20}\subsection{Optimal leverage, Kelly criterion and volatility drag}
+\label{sec:kelly}
+Can leverage raise the long-run compounded growth of an investment in VT, and by how much? This subsection derives the growth-optimal exposure, estimates it, tests it out of sample and separates the effects that make leveraged compounding differ from a simple multiple of the fund's return. The aim is not to show that leverage pays, but to identify the assumptions under which it maximises expected growth and to show how fragile that optimum is.
+
+\paragraph{Framework.} Suppose the fund's value follows a geometric Brownian motion with arithmetic expected return $\mu$ and volatility $\sigma$, and an investor holds a constant exposure $L$ to it, rebalanced continuously, with the rest in cash at the rate $r_f$ ($L<1$) or financed by borrowing ($L>1$). $L=1$ is the unleveraged fund, $L=0.5$ a 50\% exposure and $L=2$ a 200\% exposure. If borrowing costs $r_f$, wealth $W$ grows at the expected logarithmic rate
+\[
+g(L) = \frac{1}{\mathrm{d}t}\,\mathbb{E}\left[\mathrm{d}\log W_t\right] = r_f + L(\mu - r_f) - \tfrac{1}{2}L^2\sigma^2 .
+\]
+The arithmetic expected return of the portfolio, $r_f + L(\mu - r_f)$, rises linearly with $L$, but the expected log growth carries the quadratic penalty $\tfrac{1}{2}L^2\sigma^2$. Since $g'(L) = (\mu - r_f) - L\sigma^2$ and $g''(L) = -\sigma^2 < 0$, the function is strictly concave and maximised at the Kelly exposure \citep{kelly1956,breiman1961,merton1969}
+\[
+L^* = \frac{\mu - r_f}{\sigma^2}, \qquad g(L^*) = r_f + \frac{(\mu - r_f)^2}{2\sigma^2}.
+\]
+$\mu$ is an arithmetic mean: substituting the historical CAGR, which is already a log-growth rate net of the drag $\tfrac12\sigma^2$, would count the drag twice.
+
+\paragraph{Borrowing costs.} A retail investor borrows above the rate earned on cash. With a lending rate $r_l$ and a borrowing rate $r_b > r_l$, the growth rate is piecewise:
+\[
+g(L) = \begin{cases} r_l + L(\mu - r_l) - \tfrac12 L^2\sigma^2, & 0 \le L \le 1,\\[2pt] r_b + L(\mu - r_b) - \tfrac12 L^2\sigma^2, & L > 1. \end{cases}
+\]
+It remains concave, with a kink at $L=1$. The optimum is $(\mu - r_l)/\sigma^2$ if that is below one, $(\mu - r_b)/\sigma^2$ if that is above one, and exactly one otherwise: leverage is worth taking only if the marginal expected return exceeds the marginal borrowing cost by more than the marginal variance penalty. Margin rates are not available in the data, so the borrowing rate is set to the T-bill yield plus a spread of 1.5\% a year, comparable to the lower end of retail margin rates; Table~\ref{tab:ksens} reports spreads from 0 to 3\%. The T-bill yield itself is a lending rate, not an observable margin rate.
+
+\paragraph{Simulation.} The strategies are simulated on daily simple total returns $r_t$ from the adjusted prices, so dividends are included and fund expenses, already in the price, are not charged again. For an exposure $L$ decided at the close of day $t-1$,
+\[
+W_t = W_{t-1}\left(1 + R_{p,t} - c_t\right), \qquad R_{p,t} = \begin{cases} L r_t + (1-L)\, r_{l,t}, & 0\le L\le1,\\ L r_t - (L-1)\, r_{b,t}, & L>1, \end{cases}
+\]
+where $r_{l,t}$ is the T-bill yield known at the previous close divided by 252, $r_{b,t} = r_{l,t} + \text{spread}/252$, and $c_t$ is a cost of 2\,bp per unit of exposure traded when the position is rebalanced to its target at the close. With $L=1$ nothing is traded and the simulation reproduces buy-and-hold exactly. If $1 + R_{p,t} - c_t \le 0$, the strategy is insolvent and its wealth stays at zero. Five numerical checks are run on every update: $L=1$ reproduces the fund's total-return path, $L=0$ reproduces the cash account, the closed-form $L^*$ matches the numerical maximum of $g$, the exact decomposition below reconciles with simulated wealth to machine precision, and wealth cannot recover after insolvency.
+
+\begin{table}[H]
+\small
+\caption{Kelly inputs and leverage estimates (full sample).}
+\label{tab:kelly}
+\begin{tabularx}{\linewidth}{L r}
+\toprule
+\textbf{Input} & \textbf{Estimate} \\
+\midrule
+Arithmetic mean return $\mu$ (daily mean $\times 252$) & 10.4\% \\
+Cash rate $r_f$ (13-week T-bill, average) & 1.4\% \\
+Expected excess return $\mu - r_f$ (standard error) & 9.0\% (4.8\%) \\
+Volatility $\sigma$, daily returns $\times\sqrt{252}$ & 20.4\% \\
+Volatility $\sigma$, monthly returns $\times\sqrt{12}$ & 16.6\% \\
+Borrowing rate (assumption) & T-bill $+$ 1.5\% \\
+\midrule
+\textbf{Exposure} & \\
+Theoretical Kelly, borrowing at the T-bill rate, daily variance (In-sample, hindsight) & 2.17x \\
+Theoretical Kelly, borrowing at the T-bill rate, monthly variance (In-sample, hindsight) & 3.05x \\
+Theoretical Kelly, borrowing spread 1.5\% (In-sample, hindsight) & 1.81x \\
+Ex-post log-growth maximiser, frictionless (Exact daily recursion) & 2.13x \\
+Ex-post log-growth maximiser, spread and 2\,bp costs (Exact daily recursion) & 1.76x \\
+Half Kelly / quarter Kelly (from the spread case) (Fractional) & 0.90x / 0.45x \\
+Feasible under Regulation T initial margin (Constraint) & $\le$ 2.00x \\
+\bottomrule
+\end{tabularx}
+\end{table}
+With daily rebalancing, the variance that governs compounding is the variance of daily returns. Using it, the frictionless Kelly exposure is 2.17x; with the assumed borrowing spread it falls to 1.81x. The exact daily recursion, which needs neither the diffusion approximation nor normality, is maximised at 2.13x without frictions and at 1.76x with the spread and rebalancing costs, close to the theoretical values. The monthly variance gives 3.05x: because daily returns are negatively autocorrelated (Section~3), the Kelly exposure depends on the rebalancing frequency it is meant for. All these figures are computed on the full sample and are therefore in-sample and hindsight-calibrated: they describe what would have maximised growth over this particular history, not an achievable ex-ante optimum.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{kelly_wealth.pdf}
+\caption{Historical simulation, not a forecast: growth of USD 10{,}000 under constant exposures rebalanced daily, borrowing at the T-bill rate plus 1.5\%, 2\,bp rebalancing costs. Kelly exposures are estimated on the full sample (hindsight).}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Constant-exposure strategies, full sample, daily rebalancing, borrowing spread 1.5\%. Volatility and Sharpe ratio from monthly returns, as in Section~1.}
+\label{tab:kstrat}
+\begin{tabularx}{\linewidth}{L r r r r r r r}
+\toprule
+\textbf{Strategy} & \textbf{$L$} & \textbf{CAGR} & \textbf{Vol.} & \textbf{Sharpe} & \textbf{Max.\ DD} & \textbf{Final (USD)} & \textbf{Margin days} \\
+\midrule
+VT buy and hold & 1.00x & 8.7\% & 16.5\% & 0.50 & $-$50.3\% & 45,973 & 0 \\
+VT 2x & 2.00x & 9.9\% & 33.4\% & 0.42 & $-$80.1\% & 56,439 & 0 \\
+Quarter Kelly & 0.45x & 5.2\% & 7.4\% & 0.53 & $-$25.1\% & 25,142 & 0 \\
+Half Kelly & 0.90x & 8.1\% & 14.9\% & 0.51 & $-$46.3\% & 42,013 & 0 \\
+Full Kelly & 1.81x & 10.0\% & 30.1\% & 0.43 & $-$75.9\% & 57,749 & 0 \\
+Kelly capped at 1.5x & 1.50x & 9.9\% & 24.9\% & 0.45 & $-$67.7\% & 56,295 & 0 \\
+VT 3x & 3.00x & 6.3\% & 50.4\% & 0.37 & $-$93.6\% & 30,659 & 2 \\
+VT 4x & 4.00x & $-$1.9\% & 67.0\% & 0.34 & $-$98.4\% & 7,056 & 2139 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Leverage raised the historical CAGR only up to a point. Full Kelly (1.81x) and 2x ended with about 58k and 56k against 46k for buy and hold, a gain of roughly 1.4\% a year, bought with maximum drawdowns of $-$76\% and $-$80\% instead of $-$50\%. Their Sharpe ratios are lower than buy and hold, not higher: leverage financed above the cash rate scales risk more than excess return. At 3x, the CAGR drops to 6.3\%, and at 4x to $-$1.9\% with a $-$98\% drawdown: beyond the optimum, more leverage lowers long-run growth. Quarter and half Kelly give up most of the growth gain but cut drawdowns sharply, the usual argument for fractional Kelly. The four objectives that appear in this table, log growth, Sharpe ratio, maximum drawdown and terminal wealth in one realised path, are different and point to different exposures.
+
+The simulation is frictionless in one important respect: it assumes the target exposure can always be restored at the close. In practice, a US margin account is limited by Regulation T to an initial loan of 50\% of the purchase price (2x), and FINRA Rule 4210 requires equity of at least 25\% of the position's value, with many brokers demanding more. The last column counts the days on which equity fell below 25\% of assets before rebalancing, a proxy for a margin call. A 3x position, which starts with 33\% equity, breaches the threshold on 2 days (15 Oct 2008, 16 Mar 2020), when VT fell by more than 11\% in a single session; a 4x position starts at the 25\% limit and breaches it on almost every down day. A forced sale at such moments would lock in the loss and break the constant-leverage path assumed here.
+
+\paragraph{Volatility drag and the compounding gap.} Three different effects separate a leveraged position from ``$L$ times the fund'', in addition to trading costs. To isolate the effect of leverage on compounding, compare the frictionless daily-reset position financed at a rate $b_t$ with the geometrically scaled reference $\log W^{\text{ref}}_T = L\sum_t \log(1+r_t) - (L-1)\sum_t\log(1+b_t)$. The difference is
+\begin{align*}
+D_T(L) &= \sum_{t=1}^{T}\Big[\log\big(1 + L r_t - (L-1) b_t\big) - L\log(1+r_t) + (L-1)\log(1+b_t)\Big] \\
+&\approx -\tfrac12 L(L-1)\sum_{t=1}^{T}(r_t - b_t)^2 ,
+\end{align*}
+where the approximation uses second-order expansions of the logarithms and requires every wealth factor to be positive \citep{cheng2009,avellaneda2010}. The gap is zero for $L=0$ and $L=1$, negative for $L>1$, and grows with realised variance and with $L(L-1)$.
+
+\begin{table}[H]
+\small
+\caption{Exact decomposition of annualised log growth, full sample, spread 1.5\%, 2\,bp costs. Components add up to the total.}
+\label{tab:kdecomp}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{l R R R R R R}
+\toprule
+\textbf{$L$} & \textbf{$L\times$ log growth of VT} & \textbf{T-bill financing} & \textbf{Borrowing spread} & \textbf{Compoun\-ding gap} & \textbf{Trading costs} & \textbf{Total log growth} \\
+\midrule
+1.00x & 8.3\% & 0.0\% & 0.0\% & 0.0\% & 0.00\% & 8.3\% \\
+1.50x & 12.5\% & $-$0.7\% & $-$0.7\% & $-$1.6\% & $-$0.03\% & 9.4\% \\
+2.00x & 16.6\% & $-$1.4\% & $-$1.5\% & $-$4.2\% & $-$0.08\% & 9.4\% \\
+3.00x & 24.9\% & $-$2.8\% & $-$3.0\% & $-$12.8\% & $-$0.25\% & 6.1\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Over the full sample, VT's arithmetic mean return was 10.4\% a year, but its log growth only 8.3\%: the difference, 2.1\%, is the ordinary volatility drag that affects any risky investment, close to $\tfrac{1}{2}\sigma^2 = 2.1\%$. Leverage adds a second, distinct effect. Table~\ref{tab:kdecomp} decomposes the realised log growth of each strategy exactly into five parts: $L$ times the log growth of VT; financing at the T-bill rate; the borrowing spread; the compounding gap $D_T(L)$; and trading costs. At 2x, the compounding gap costs 4.2\% a year, more than the T-bill financing (1.4\%) or the spread (1.5\%), and costs are negligible. At 3x the gap grows to 12.8\%, roughly in proportion to $L(L-1)$ as the approximation predicts.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{kelly_drag.pdf}
+\caption{Historical simulation: a frictionless 2x daily-reset position financed at the T-bill rate, its geometrically scaled reference and VT (top); cumulative exact compounding gap and its approximation (bottom). Shaded: September 2008 to March 2009 and February to April 2020.}
+\end{figure}
+The gap is path-dependent. If VT gains 10\% and then loses 9.09\%, it is back where it started; a daily-reset 2x position gains 20\% and then loses 18.18\%, ending 1.8\% lower ($1.2 \times 0.8182 = 0.982$). Over the sample, the exact gap at 2x reached -0.775 in log terms (approximation -0.764), so the frictionless 2x position ended at USD 75,426 against USD 163,737 for the geometric reference. Most of the gap accumulated in the 2008--2009 and 2020 crises, when daily variance was highest. The reference is a decomposition device, not an investable strategy. Compared with another common benchmark, twice the cumulative simple return of VT (USD 81,945), the daily-reset position also ended lower in this sample, but that comparison has no fixed sign: in a steady trend with low volatility, daily resetting compounds gains and can beat the simple multiple.
+
+\paragraph{Growth as a function of leverage.} Figure~\ref{fig:kgrowth} plots the model growth curve and the growth actually realised by each constant exposure. The curves are concave: below the optimum, more leverage adds growth; beyond it, the quadratic penalty dominates and growth falls, turning negative around 4x. The realised curve follows the model closely because both use the same sample, which is precisely why its maximum is not a guide to the future. The shaded band shows how far the model curve moves when $\mu$ is set to either end of its 95\% confidence interval: the uncertainty grows with $L$, and at 2x the band is 37 percentage points of annual growth wide.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{kelly_growth.pdf}
+\caption{Model-implied expected log growth $g(L)$ (blue, with and without the borrowing spread; band: mean return at the ends of its 95\% interval) and realised log growth of the daily simulations (orange, in-sample). Vertical lines: 1x, half Kelly and Kelly with the spread.}
+\label{fig:kgrowth}
+\end{figure}
+
+\paragraph{Estimation uncertainty.} Kelly leverage inherits the imprecision of the expected return. With $\hat\mu - r_f = 9.0\%$ estimated with a standard error of 4.8\%, the approximate standard error of $L^*$ is $1/(\sigma\sqrt{T}) \approx 1.14$. The block bootstrap confirms it: with 21-day blocks, the 95\% interval runs from 0.24x to 4.64x, the probability that the true optimum is below 1x is 13\%, and the results hardly depend on the block length. Table~\ref{tab:ksens} shows that plausible changes to the expected return, the variance or the period move the estimate by about one unit of leverage or more: an excess return of 3\% instead of the historical 9.0\% gives 0.72x; the GARCH long-run variance gives 1.29x; and the five-year sub-periods range from 0.69x to 6.99x.
+
+\begin{table}[H]
+\small
+\caption{Circular block bootstrap of the frictionless Kelly exposure (2,000 resamples of daily excess returns).}
+\begin{tabularx}{\linewidth}{L r r r r}
+\toprule
+\textbf{Block length} & \textbf{Median} & \textbf{95\% interval} & \textbf{P($L^*<1$)} & \textbf{P($L^*>2$)} \\
+\midrule
+1 (i.i.d.) & 2.15x & [$-$0.02x, 4.33x] & 15\% & 56\% \\
+21 days & 2.17x & [0.24x, 4.64x] & 13\% & 56\% \\
+63 days & 2.23x & [0.15x, 4.92x] & 14\% & 57\% \\
+252 days & 2.20x & [0.26x, 5.34x] & 14\% & 56\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\small
+\caption{Kelly exposure under alternative inputs, one input changed at a time (borrowing at the T-bill rate unless stated).}
+\label{tab:ksens}
+\begin{tabularx}{\linewidth}{l L r}
+\toprule
+\textbf{Input} & \textbf{Value} & \textbf{$L^*$} \\
+\midrule
+Expected excess return & Historical estimate & 2.17x \\
+Expected excess return & Excess return 5\% & 1.20x \\
+Expected excess return & Excess return 3\% & 0.72x \\
+\midrule{}Variance estimate & Daily returns, $\sigma = 20.4\%$ & 2.17x \\
+Variance estimate & Monthly returns, $\sigma = 16.6\%$ & 3.29x \\
+Variance estimate & GARCH long run, $\sigma = 26.4\%$ & 1.29x \\
+\midrule{}Borrowing spread & 0.0\% & 2.17x \\
+Borrowing spread & 0.5\% & 2.05x \\
+Borrowing spread & 1.5\% & 1.81x \\
+Borrowing spread & 3.0\% & 1.45x \\
+\midrule{}Sub-period & 2008--2012 & 0.69x \\
+Sub-period & 2013--2017 & 6.99x \\
+Sub-period & 2018--2022 & 1.42x \\
+Sub-period & 2023--2026 & 6.92x \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Out-of-sample test.} To remove hindsight, Kelly exposure is re-estimated at every month end from 30 Jun 2011, after a 3-year training period, using only data available at that date: the expanding-window mean excess return, the expanding-window daily variance and the current T-bill yield plus the spread. The estimate is held for the next month and rebalanced daily. It ranged from 0.03x to 1.86x, starting at 0.64x because the training period was dominated by the 2008 crash; caps at 1.5x or 2x would never have bound. Out of sample, estimated full Kelly earned 9.6\% a year against 10.1\% for buy and hold, with higher volatility and a lower Sharpe ratio; the leverage that looks optimal in hindsight was not identifiable in real time. Fixed 2x did better over this particular period, which began after the crash, but choosing it also relies on hindsight.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{kelly_oos.pdf}
+\caption{Kelly exposure estimated in real time at each month end (expanding window, borrowing spread 1.5\%), compared with the full-sample estimate available only in hindsight.}
+\end{figure}
+
+\begin{table}[H]
+\small
+\caption{Out-of-sample comparison from 01 Jul 2011 (common period, daily rebalancing, spread 1.5\%, 2\,bp costs).}
+\label{tab:koos}
+\begin{tabularx}{\linewidth}{L r r r r r r}
+\toprule
+\textbf{Strategy} & \textbf{$L$: mean (range)} & \textbf{CAGR} & \textbf{Vol.} & \textbf{Sharpe} & \textbf{Max.\ DD} & \textbf{Final (USD)} \\
+\midrule
+VT buy and hold & 1.00x & 10.1\% & 14.4\% & 0.63 & $-$34.2\% & 43,610 \\
+VT 2x & 2.00x & 13.9\% & 29.1\% & 0.54 & $-$59.6\% & 73,973 \\
+Full-sample Kelly, 1.81x (hindsight) & 1.81x & 13.5\% & 26.2\% & 0.56 & $-$55.3\% & 69,295 \\
+Estimated full Kelly (real time) & 1.25x (0.03x--1.86x) & 9.6\% & 18.1\% & 0.51 & $-$44.0\% & 40,683 \\
+Estimated half Kelly (real time) & 0.63x (0.01x--0.93x) & 6.4\% & 9.0\% & 0.56 & $-$24.0\% & 25,832 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Interpretation.} Historical VT returns imply a growth-optimal exposure of about 1.81x with realistic borrowing costs, but this number is an in-sample artefact of one favourable eighteen-year path rather than a parameter that can be relied on. Its 95\% interval spans almost the whole range from no leverage to 4x, it moves by about one unit of leverage or more with plausible changes to the expected return, the variance or the period, and a real-time estimate would not have found it. The features documented earlier in this report work against aggressive leverage: fat tails and volatility clustering (Section~2) mean that losses arrive in bursts, exactly when the compounding gap widens and margin calls occur; the 50\% drawdown of 2008--2009 becomes 76\% at full Kelly and 80\% at 2x; and the confidence interval of the Sharpe ratio (Section~1) is the same uncertainty that makes $L^*$ unknowable. Because the growth curve is flat near its maximum and falls steeply beyond it, overestimating $L^*$ is far more costly than underestimating it. This asymmetry is the case for fractional Kelly \citep{thorp2006,maclean2011}: under the model, half Kelly keeps three quarters of the growth gain while halving the volatility, and at the point estimate it does not even require borrowing.
+
 % ---------------------------------------------------------------- 5
 \keep{24}
 \section{A Swiss investor's perspective}
@@ -572,6 +770,7 @@ Yahoo's adjusted prices are not an official source, so the total returns used in
   \item \textbf{Data source.} Yahoo Finance is not an official source, and its adjusted prices can be revised retroactively. The validation against Vanguard covers a single reference date.
   \item \textbf{Market price vs NAV.} The analysis uses closing market prices. The daily autocorrelation may partly reflect gaps between the market price and the net asset value, which cannot be tested without daily NAV data.
   \item \textbf{Taxes and costs.} Returns are gross of investor-level taxes and trading costs (fund expenses are already reflected in the price). Dividends are assumed to be reinvested at the closing price on the ex-dividend date.
+  \item \textbf{Leverage simulations.} Section~\ref{sec:kelly} assumes the target exposure is restored at each close at a small cost, ignores intraday moves, forced liquidations and taxes, and uses an assumed borrowing spread rather than observed margin rates. Its results are historical simulations, not achievable track records.
   \item \textbf{Model choices.} GARCH(1,1) with symmetric Student-$t$ errors does not capture the asymmetric response of volatility to losses (leverage effect) nor the skewness of large losses. Bootstrap results assume that the dependence structure of the past repeats.
 \end{itemize}
 
@@ -582,26 +781,40 @@ The evidence describes a broadly diversified equity fund that has delivered the 
 
 Three statements about efficiency need to be kept apart. Statistically, the random walk is rejected only for a small negative daily autocorrelation; failing to reject it at longer horizons does not prove that prices are efficient, because the tests have limited power with eighteen years of data. In terms of predictability, the effect explains about 1.1\% of the variance of daily returns and is concentrated in crises. Economically, none of the simple rules examined, moving averages or calendar strategies, created value after costs. The data are consistent with an efficient market at the horizons that matter to investors, without proving it.
 
+Leverage illustrates the same point from another angle. Over this sample, a Kelly exposure of about 1.81x would have maximised growth after borrowing costs, but the estimate is too imprecise to act on, a real-time version did not beat buy and hold, and the compounding gap, deep drawdowns and margin constraints all bite hardest in the crises that dominate long-run outcomes.
+
 On risk, the richer models help to describe volatility, but their forecasting advantage over a simple exponentially weighted average is modest, and every model still underestimates how extreme losses cluster. For long-term investors, the lessons are about horizon and discipline rather than prediction: the probability of loss falls with the holding period but remains uncertain and not negligible, and missing a handful of days in the middle of a crisis is as costly as suffering the worst of it.
 
 \section*{Data, methods and reproducibility}
-\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.17, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. These analyses are descriptive and historical; they do not constitute investment advice.}
+\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.18, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. The five numerical checks of Section~\ref{sec:kelly} passed on this run (largest error 1.6e-14); they are also run as \texttt{tests/test\_kelly.py} before each update. These analyses are descriptive and historical; they do not constitute investment advice.}
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
 \footnotesize
 \setlength{\itemsep}{0.2em}
+\bibitem[Avellaneda and Zhang(2010)]{avellaneda2010}
+Avellaneda, M. and Zhang, S. (2010). Path-dependence of leveraged ETF returns. \emph{SIAM Journal on Financial Mathematics}, 1(1), 586--603.
 \bibitem[Bollerslev(1986)]{bollerslev1986}
 Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. \emph{Journal of Econometrics}, 31(3), 307--327.
+\bibitem[Breiman(1961)]{breiman1961}
+Breiman, L. (1961). Optimal gambling systems for favorable games. In \emph{Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability}, Vol.~1, 65--78. University of California Press.
+\bibitem[Cheng and Madhavan(2009)]{cheng2009}
+Cheng, M. and Madhavan, A. (2009). The dynamics of leveraged and inverse exchange-traded funds. \emph{Journal of Investment Management}, 7(4), 43--62.
 \bibitem[Christoffersen(1998)]{christoffersen1998}
 Christoffersen, P.~F. (1998). Evaluating interval forecasts. \emph{International Economic Review}, 39(4), 841--862.
 \bibitem[Diebold and Mariano(1995)]{diebold1995}
 Diebold, F.~X. and Mariano, R.~S. (1995). Comparing predictive accuracy. \emph{Journal of Business \& Economic Statistics}, 13(3), 253--263.
 \bibitem[Holm(1979)]{holm1979}
 Holm, S. (1979). A simple sequentially rejective multiple test procedure. \emph{Scandinavian Journal of Statistics}, 6(2), 65--70.
+\bibitem[Kelly(1956)]{kelly1956}
+Kelly, J.~L. (1956). A new interpretation of information rate. \emph{Bell System Technical Journal}, 35(4), 917--926.
 \bibitem[Kupiec(1995)]{kupiec1995}
 Kupiec, P.~H. (1995). Techniques for verifying the accuracy of risk measurement models. \emph{Journal of Derivatives}, 3(2), 73--84.
 \bibitem[Lo and MacKinlay(1988)]{lo1988}
 Lo, A.~W. and MacKinlay, A.~C. (1988). Stock market prices do not follow random walks: Evidence from a simple specification test. \emph{Review of Financial Studies}, 1(1), 41--66.
+\bibitem[MacLean, Thorp and Ziemba(2011)]{maclean2011}
+MacLean, L.~C., Thorp, E.~O. and Ziemba, W.~T. (Eds.) (2011). \emph{The Kelly Capital Growth Investment Criterion: Theory and Practice}. World Scientific.
+\bibitem[Merton(1969)]{merton1969}
+Merton, R.~C. (1969). Lifetime portfolio selection under uncertainty: The continuous-time case. \emph{Review of Economics and Statistics}, 51(3), 247--257.
 \bibitem[Mertens(2002)]{mertens2002}
 Mertens, E. (2002). Comments on variance of the IID estimator in Lo (2002). Working paper, University of Basel.
 \bibitem[Opdyke(2007)]{opdyke2007}
@@ -610,6 +823,8 @@ Opdyke, J.~D. (2007). Comparing Sharpe ratios: So where are the p-values? \emph{
 Patton, A.~J. (2011). Volatility forecast comparison using imperfect volatility proxies. \emph{Journal of Econometrics}, 160(1), 246--256.
 \bibitem[Politis and Romano(1994)]{politis1994}
 Politis, D.~N. and Romano, J.~P. (1994). The stationary bootstrap. \emph{Journal of the American Statistical Association}, 89(428), 1303--1313.
+\bibitem[Thorp(2006)]{thorp2006}
+Thorp, E.~O. (2006). The Kelly criterion in blackjack, sports betting, and the stock market. In S.~A. Zenios and W.~T. Ziemba (Eds.), \emph{Handbook of Asset and Liability Management}, Vol.~1, 385--428. Elsevier.
 \end{thebibliography}
 
 \end{document}

@@ -785,6 +785,119 @@ versions = (f"Python {platform.python_version()}, pandas {pd.__version__}, NumPy
             f"SciPy {_scipy.__version__}, Matplotlib {matplotlib.__version__}")
 
 # --------------------------------------------------------------------------
+# Section 4.5: Kelly criterion, leverage and volatility drag
+# --------------------------------------------------------------------------
+import kelly
+
+SPREAD_MAIN = 0.015                 # assumed borrowing spread over the T-bill rate (annual)
+SPREADS = (0.0, 0.005, 0.015, 0.03)
+REB_COST = 0.0002                   # 2 bp per unit of exposure traded at each daily rebalancing
+CAP = 1.5                           # constrained Kelly cap
+
+k_r = r_tr.copy()                                                   # daily simple total returns
+k_rl = (irx / DAYS_PER_YEAR).shift(1).reindex(k_r.index).bfill()    # cash: T-bill known at the previous close
+k_rb = k_rl + SPREAD_MAIN / DAYS_PER_YEAR                           # borrowing: T-bill + spread
+k_years = (k_r.index[-1] - idx[0]).days / 365.25
+k_valid = kelly.validate(k_r, k_rl, k_rb)                           # raises if any check fails
+
+# Parameter estimates (annualised; arithmetic means, not CAGR)
+k_mu = k_r.mean() * DAYS_PER_YEAR
+k_rf = k_rl.mean() * DAYS_PER_YEAR
+k_ex = k_r - k_rl
+k_s2d = k_r.var() * DAYS_PER_YEAR
+r_mo_k = tr_m.pct_change().dropna()
+k_s2m = r_mo_k.var() * 12
+k_mum = r_mo_k.mean() * 12
+k_se_mu = np.sqrt(k_s2d / k_years)                                  # standard error of the annual mean
+L_d = kelly.kelly_leverage(k_mu, k_s2d, k_rf)                       # frictionless, daily variance
+L_m = kelly.kelly_leverage(k_mum, k_s2m, k_rf)                      # frictionless, monthly variance
+L_s = kelly.kelly_leverage(k_mu, k_s2d, k_rf, k_rf + SPREAD_MAIN)   # with borrowing spread
+L_se = np.sqrt(k_s2d / k_years) / k_s2d                             # approx. standard error of L*
+L_grid = np.round(np.arange(0, 4.0001, 0.01), 2)
+g_fric = np.array([kelly.realised_log_growth(k_r, k_rl, k_rl, L, 0.0, k_years) for L in L_grid])
+g_main = np.array([kelly.realised_log_growth(k_r, k_rl, k_rb, L, REB_COST, k_years) for L in L_grid])
+L_ep_fric, L_ep_main = L_grid[np.argmax(g_fric)], L_grid[np.argmax(g_main)]
+
+# Historical strategies (common sample, main financing and costs)
+k_strats = [("VT buy and hold", 1.0), ("VT 2x", 2.0), ("Quarter Kelly", 0.25 * L_s),
+            ("Half Kelly", 0.5 * L_s), ("Full Kelly", L_s), (f"Kelly capped at {CAP}x", min(L_s, CAP))]
+k_sims = {name: (L, kelly.simulate(k_r, k_rl, k_rb, L, REB_COST)) for name, L in k_strats}
+k_rows = []
+for name, (L, sres) in k_sims.items():
+    if sres.insolvent_on is not None:
+        k_rows.append((name, L, None, sres))
+    else:
+        k_rows.append((name, L, metrics(sres.returns, k_rl), sres))
+for L in (3.0, 4.0):
+    sres = kelly.simulate(k_r, k_rl, k_rb, L, REB_COST)
+    k_rows.append((f"VT {L:.0f}x", L, None if sres.insolvent_on is not None else metrics(sres.returns, k_rl), sres))
+
+# Volatility drag: exact decomposition of log wealth relative to L x log(VT wealth)
+k_decomp = []
+for L in (1.0, 1.5, 2.0, 3.0):
+    sres = kelly.simulate(k_r, k_rl, k_rb, L, REB_COST)
+    Rp = kelly.portfolio_return(k_r, k_rl, k_rb, L)
+    b_used = k_rb.values if L > 1 else k_rl.values
+    lw = np.log(sres.wealth.iloc[-1])
+    lvt = np.log1p(k_r).sum()
+    fin_tbill = -(L - 1) * np.log1p(k_rl).sum()
+    fin_spread = -(L - 1) * (np.log1p(b_used) - np.log1p(k_rl.values)).sum()
+    comp = kelly.compounding_gap(k_r, b_used, L)[0][-1]
+    costs = lw - np.log1p(Rp).sum()
+    k_decomp.append((L, L * lvt / k_years, fin_tbill / k_years, fin_spread / k_years, comp / k_years,
+                     costs / k_years, lw / k_years))
+    assert abs(L * lvt + fin_tbill + fin_spread + comp + costs - lw) < 1e-8
+k_drag_1x = k_mu - np.log1p(k_r).sum() / k_years                    # ordinary drag of the unleveraged fund
+
+# Figure B data: frictionless 2x financed at the T-bill rate
+D2_exact, D2_approx = kelly.compounding_gap(k_r, k_rl, 2.0)
+W2_fric = kelly.simulate(k_r, k_rl, k_rl, 2.0).wealth
+W2_ref = np.exp(kelly.geometric_reference(k_r, k_rl, 2.0))
+vt_cum = (1 + k_r).cumprod()
+naive_2x = 1 + 2 * (vt_cum.iloc[-1] - 1)
+
+# Estimation uncertainty
+rng = np.random.default_rng(RNG_SEED)
+k_boot = {blk: kelly.circular_block_bootstrap_kelly(k_ex.values, blk, B, rng) for blk in (1, 21, 63, 252)}
+k_sens = []
+for lab, mu_x in [("Historical estimate", k_mu - k_rf), ("Excess return 5\\%", 0.05), ("Excess return 3\\%", 0.03)]:
+    k_sens.append(("Expected excess return", lab, kelly.kelly_leverage(k_rf + mu_x, k_s2d, k_rf)))
+for lab, s2 in [("Daily returns", k_s2d), ("Monthly returns", k_s2m), ("GARCH long run", g_uncond_vol ** 2)]:
+    k_sens.append(("Variance estimate", f"{lab}, $\\sigma = {num(np.sqrt(s2) * 100, 1)}\\%$", kelly.kelly_leverage(k_mu, s2, k_rf)))
+for sp in SPREADS:
+    k_sens.append(("Borrowing spread", f"{num(sp * 100, 1)}\\%", kelly.kelly_leverage(k_mu, k_s2d, k_rf, k_rf + sp)))
+for a, b_ in cuts:
+    sl = slice(a, b_)
+    rr, ll = k_r.loc[sl], k_rl.loc[sl]
+    k_sens.append(("Sub-period", f"{rr.index[0].year}--{rr.index[-1].year}",
+                   kelly.kelly_leverage(rr.mean() * DAYS_PER_YEAR, rr.var() * DAYS_PER_YEAR, ll.mean() * DAYS_PER_YEAR)))
+
+# Out-of-sample: expanding-window estimate at each month end, applied over the next month
+TRAIN_YEARS = 3
+dec_dates = [d for d in k_r.groupby(k_r.index.to_period("M")).tail(1).index
+             if (d - idx[0]).days >= TRAIN_YEARS * 365.25 and d < k_r.index[-1]]
+oos_L = []
+for d in dec_dates:
+    hist_ex, hist_r = k_ex.loc[:d], k_r.loc[:d]
+    rf_now = float(irx.loc[:d].iloc[-1])                       # current annual T-bill yield
+    mu_hat = rf_now + hist_ex.mean() * DAYS_PER_YEAR
+    s2_hat = hist_r.var() * DAYS_PER_YEAR
+    oos_L.append(kelly.kelly_leverage(mu_hat, s2_hat, rf_now, rf_now + SPREAD_MAIN))
+oos_L = pd.Series(oos_L, index=pd.DatetimeIndex(dec_dates))
+test_idx = k_r.index[k_r.index > dec_dates[0]]
+L_daily = oos_L.reindex(k_r.index, method="ffill").shift(1).reindex(test_idx)  # decided at the previous close
+oos_specs = [("VT buy and hold", pd.Series(1.0, index=test_idx)), ("VT 2x", pd.Series(2.0, index=test_idx)),
+             (f"Full-sample Kelly, {L_s:.2f}x (hindsight)", pd.Series(L_s, index=test_idx)),
+             ("Estimated full Kelly (real time)", L_daily), ("Estimated half Kelly (real time)", 0.5 * L_daily)]
+oos_cap_binds = bool((L_daily > 2.0).any())
+oos_rows = []
+for name, Ls in oos_specs:
+    sres = kelly.simulate(k_r.loc[test_idx], k_rl.loc[test_idx], k_rb.loc[test_idx], Ls, REB_COST)
+    oos_rows.append((name, float(Ls.mean()), float(Ls.min()), float(Ls.max()),
+                     None if sres.insolvent_on is not None else metrics(sres.returns, k_rl.loc[test_idx]), sres))
+oos_start = test_idx[0]
+
+# --------------------------------------------------------------------------
 # Export for the website dashboard (heavy computations done once, here)
 # --------------------------------------------------------------------------
 import json
@@ -1103,8 +1216,85 @@ def c_chf():
     save(fig, "chf")
 
 
+def c_kelly_wealth():
+    fig, ax = plt.subplots(figsize=(W, 2.8))
+    styles = [("VT buy and hold", BLUE, "-", 1.1), ("VT 2x", RED, "-", 0.9), ("Half Kelly", GREEN, ":", 1.2),
+              ("Full Kelly", ORANGE, "--", 1.0), (f"Kelly capped at {CAP}x", GREY, "-.", 1.0)]
+    for name, col, ls, lw in styles:
+        L, sres = k_sims[name]
+        ax.plot(sres.wealth.index, sres.wealth * cap, color=col, ls=ls, lw=lw, label=f"{name}, {L:.2f}x")
+    ax.set_yscale("log")
+    ax.set_yticks([3000, 5000, 10000, 20000, 50000, 100000])
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v / 1000:.0f}k"))
+    ax.yaxis.set_minor_formatter(FuncFormatter(lambda v, _: ""))
+    ax.set_ylabel("Wealth, USD (log scale)")
+    year_axis(ax)
+    ax.legend(loc="upper left", fontsize=7.5, ncols=2)
+    save(fig, "kelly_wealth")
+
+
+def c_kelly_drag():
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(W, 3.6), sharex=True, gridspec_kw={"height_ratios": [1.4, 1]})
+    for ax in (a1, a2):
+        for s0, s1 in (("2008-09-01", "2009-03-31"), ("2020-02-19", "2020-04-30")):
+            ax.axvspan(pd.Timestamp(s0), pd.Timestamp(s1), color=GREY, alpha=0.15, lw=0)
+    a1.plot(k_r.index, W2_ref * cap, color=GREY, lw=1.0, ls="--", label="Geometric reference (not investable)")
+    a1.plot(W2_fric.index, W2_fric * cap, color=ORANGE, lw=1.1, label="2x daily reset, financed at the T-bill rate")
+    a1.plot(vt_cum.index, vt_cum * cap, color=BLUE, lw=1.0, label="VT buy and hold")
+    a1.set_yscale("log")
+    a1.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v / 1000:.0f}k"))
+    a1.yaxis.set_minor_formatter(FuncFormatter(lambda v, _: ""))
+    a1.set_ylabel("USD (log)")
+    a1.legend(loc="upper left", fontsize=7.5)
+    a2.plot(k_r.index, D2_exact, color=RED, lw=1.1, label="Exact gap $D_t(2)$")
+    a2.plot(k_r.index, D2_approx, color=GREY, lw=0.9, ls="--", label="Approximation $-\\frac{1}{2}L(L-1)\\sum(r-b)^2$")
+    a2.set_ylabel("Cumulative log gap")
+    a2.legend(loc="lower left", fontsize=7.5)
+    year_axis(a2)
+    a1.grid(axis="x", visible=False)
+    fig.tight_layout(h_pad=0.4)
+    save(fig, "kelly_drag")
+
+
+def c_kelly_growth():
+    fig, ax = plt.subplots(figsize=(W, 2.6))
+    Lc = np.linspace(0, 4, 401)
+    g0 = kelly.g_theory(Lc, k_mu, k_s2d, k_rf)
+    gs = kelly.g_theory(Lc, k_mu, k_s2d, k_rf, k_rf + SPREAD_MAIN)
+    glo = kelly.g_theory(Lc, k_mu - 1.96 * k_se_mu, k_s2d, k_rf)
+    ghi = kelly.g_theory(Lc, k_mu + 1.96 * k_se_mu, k_s2d, k_rf)
+    ax.fill_between(Lc, glo, ghi, color=BLUE, alpha=0.10, lw=0, label="Model, mean at its 95% interval")
+    ax.plot(Lc, g0, color=BLUE, lw=1.3, label="Model, borrowing at the T-bill rate")
+    ax.plot(Lc, gs, color=BLUE, lw=1.1, ls="--", label=f"Model, borrowing spread {SPREAD_MAIN * 100:.1f}%")
+    ok = np.isfinite(g_main)
+    ax.plot(L_grid[ok], g_main[ok], color=ORANGE, lw=1.1, ls=":", label="Realised (exact daily recursion, spread and costs)")
+    ax.set_ylim(-0.25, 0.25)
+    for Lm, lab, dx in ((0.5 * L_s, "half Kelly", -0.03), (1.0, "1x", 0.03), (L_s, "Kelly", 0.03)):
+        ax.axvline(Lm, color=GREY, lw=0.6, ls=":")
+        ax.text(Lm + dx, -0.235, lab, ha="right" if dx < 0 else "left", va="bottom", fontsize=7.5, color="#3d3c39")
+    ax.axhline(0, color="#b9b8b0", lw=0.8)
+    ax.yaxis.set_major_formatter(fmt_pct)
+    ax.set_xlabel("Exposure $L$ (1 = unleveraged)")
+    ax.set_ylabel("Annualised log growth")
+    ax.set_xlim(0, 4)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncols=2, fontsize=7.5)
+    save(fig, "kelly_growth")
+
+
+def c_kelly_oos():
+    fig, ax = plt.subplots(figsize=(W, 1.9))
+    ax.step(oos_L.index, oos_L, where="post", color=ORANGE, lw=1.1, label="Estimated full Kelly (real time)")
+    ax.axhline(L_s, color=GREY, lw=0.8, ls="--", label=f"Full-sample estimate ({L_s:.2f}x, hindsight)")
+    ax.axhline(1, color="#b9b8b0", lw=0.8)
+    ax.set_ylabel("Exposure $L$")
+    year_axis(ax)
+    ax.legend(loc="lower right", fontsize=7.5)
+    save(fig, "kelly_oos")
+
+
 for chart in (c_price, c_annual, c_vol, c_dd, c_distribution, c_acf, c_calendar, c_ma200,
-              c_rolling, c_best, c_plan, c_chf, c_var_bt, c_start):
+              c_rolling, c_best, c_plan, c_chf, c_var_bt, c_start, c_kelly_wealth, c_kelly_drag,
+              c_kelly_growth, c_kelly_oos):
     chart()
 
 # --------------------------------------------------------------------------
@@ -1148,29 +1338,6 @@ v.update({
     "ploss_emp": " / ".join(tp(r[2], 0) for r in roll_rows),
     "ploss_boot": " / ".join(tp(boot_ploss[k], 0) for k in ("1 year", "5 years", "10 years")),
 })
-v["takeaways"] = [
-    f"Over {num(years, 1)} years, VT returned {tp(full['cagr'])} a year with dividends reinvested, of which roughly "
-    f"{tp(full['cagr'] - cagr(px))} a year came from dividends. "
-    + (f"These figures match Vanguard's published market-price returns to within {num(val_max_gap * 100, 2)} "
-       "percentage point." if val_rows else ""),
-    f"Measured on monthly returns, annualised volatility is {tp(full['vol'])}; scaling daily volatility by "
-    f"$\\sqrt{{252}}$ gives {tp(full['vol_d'])} because daily returns are negatively autocorrelated. The maximum "
-    f"drawdown was {tp(full['mdd'], 0)} during the global financial crisis.",
-    f"The Sharpe ratio of {tn(full['sharpe'])} has a 95\\% confidence interval of {ci(full)}: eighteen years of "
-    "data are barely enough to distinguish it from zero.",
-    f"Daily returns have fat tails (kurtosis {tn(kurt, 1)}) and strongly persistent volatility (GARCH persistence "
-    f"{num(g_persist, 3)}, half-life of about {num(g_half_life, 0)} trading days). Out of sample, a GARCH(1,1)-$t$ "
-    "model gives the best variance forecasts by the QLIKE criterion, but its edge over a simple EWMA is not "
-    "statistically significant. It passes the 5\\% VaR backtest, unlike rolling historical and normal VaR, whose "
-    "breaches cluster.",
-    f"After correcting for multiple testing, the only rejection of the random walk is a small negative "
-    f"autocorrelation of daily returns ({tn(ac_freq[0][2], 3)}), not detectable at weekly and monthly frequencies. "
-    "No calendar effect is detected, and moving-average timing rules underperformed buy and hold whatever the "
-    "window and execution lag.",
-    f"For a Swiss franc investor, the weaker dollar cut the annualised return by {tp(full['cagr'] - cagr_chf)} "
-    f"({tp(cagr_chf)} in CHF), before taxes.",
-]
-
 # ---------------------------------------------------------------- 1. Return and risk
 best_y, worst_y = y_full.idxmax(), y_full.idxmin()
 v["annual_note"] = (
@@ -1451,7 +1618,196 @@ v["method_text"] = (
     "Sortino ratios use monthly returns; Sharpe confidence intervals follow \\citet{mertens2002} and "
     f"\\citet{{opdyke2007}}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed {RNG_SEED}. "
     f"Data file fingerprint (SHA-256 of \\texttt{{data/VT.csv}}): \\texttt{{{data_sha}}}. Software: {versions}. "
+    f"The five numerical checks of Section~\\ref{{sec:kelly}} passed on this run (largest error "
+    f"{max(v_ for k_, v_ in k_valid.items() if not isinstance(v_, bool)):.1e}); they are also run as "
+    "\\texttt{tests/test\\_kelly.py} before each update. "
     "These analyses are descriptive and historical; they do not constitute investment advice.")
+
+# ---------------------------------------------------------------- 4.5 Kelly
+def lev(x):
+    return lx(f"{x:.2f}x")
+
+
+v.update({
+    "k_mu": tp(k_mu), "k_rf": tp(k_rf), "k_ex": tp(k_mu - k_rf), "k_sd": tp(np.sqrt(k_s2d)),
+    "k_sdm": tp(np.sqrt(k_s2m)), "k_mum": tp(k_mum), "k_se_mu": tp(k_se_mu),
+    "L_d": lev(L_d), "L_m": lev(L_m), "L_s": lev(L_s), "L_se": num(L_se, 2),
+    "L_ep_fric": lev(L_ep_fric), "L_ep_main": lev(L_ep_main),
+    "L_half": lev(0.5 * L_s), "L_quarter": lev(0.25 * L_s), "k_cap": f"{CAP:.1f}x",
+    "k_spread": tp(SPREAD_MAIN), "k_cost": f"{REB_COST * 1e4:.0f}",
+    "k_drag1": tp(k_drag_1x), "k_half_s2": tp(0.5 * k_s2d),
+    "D2_exact": num(D2_exact[-1], 3), "D2_approx": num(D2_approx[-1], 3),
+    "W2_fric": num(W2_fric.iloc[-1] * cap, 0), "W2_ref": num(W2_ref[-1] * cap, 0),
+    "naive_2x": num(naive_2x * cap, 0), "vt_final": num(vt_cum.iloc[-1] * cap, 0),
+    "oos_start": dt(oos_start), "train_years": str(TRAIN_YEARS),
+    "oos_L_min": lev(oos_L.min()), "oos_L_max": lev(oos_L.max()), "oos_L_mean": lev(oos_L.mean()),
+})
+v["k_param_rows"] = [
+    ["Arithmetic mean return $\\mu$ (daily mean $\\times 252$)", tp(k_mu)],
+    ["Cash rate $r_f$ (13-week T-bill, average)", tp(k_rf)],
+    ["Expected excess return $\\mu - r_f$ (standard error)", f"{tp(k_mu - k_rf)} ({tp(k_se_mu)})"],
+    ["Volatility $\\sigma$, daily returns $\\times\\sqrt{252}$", tp(np.sqrt(k_s2d))],
+    ["Volatility $\\sigma$, monthly returns $\\times\\sqrt{12}$", tp(np.sqrt(k_s2m))],
+    ["Borrowing rate (assumption)", f"T-bill $+$ {tp(SPREAD_MAIN)}"],
+]
+v["k_L_rows"] = [
+    ["Theoretical Kelly, borrowing at the T-bill rate, daily variance", lev(L_d), "In-sample, hindsight"],
+    ["Theoretical Kelly, borrowing at the T-bill rate, monthly variance", lev(L_m), "In-sample, hindsight"],
+    [f"Theoretical Kelly, borrowing spread {tp(SPREAD_MAIN)}", lev(L_s), "In-sample, hindsight"],
+    ["Ex-post log-growth maximiser, frictionless", lev(L_ep_fric), "Exact daily recursion"],
+    [f"Ex-post log-growth maximiser, spread and {REB_COST * 1e4:.0f}\\,bp costs", lev(L_ep_main), "Exact daily recursion"],
+    ["Half Kelly / quarter Kelly (from the spread case)", f"{lev(0.5 * L_s)} / {lev(0.25 * L_s)}", "Fractional"],
+    ["Feasible under Regulation T initial margin", "$\\le$ 2.00x", "Constraint"],
+]
+
+
+def strat_row(name, L, m, sres):
+    if m is None:
+        return [name, lev(L), "insolvent", "--", "--", "--", f"0 ({dt(sres.insolvent_on)})", str(sres.margin_breaches)]
+    return [name, lev(L), tp(m["cagr"]), tp(m["vol"]), tn(m["sharpe"]), tp(m["mdd"]),
+            num(sres.wealth.iloc[-1] * cap, 0), str(sres.margin_breaches)]
+
+
+v["n_boot"] = f"{B:,}"
+v["k_band2"] = num(2 * 2 * 1.96 * k_se_mu * 100, 0)
+v["half_below_one"] = bool(0.5 * L_s < 1)
+_x = k_boot[21]                                   # frictionless resampled ratios
+_shift = SPREAD_MAIN / k_s2d
+k_boot_s = np.where(_x <= 1, np.clip(_x, 0, None), np.where(_x - _shift >= 1, _x - _shift, 1.0))
+v["L_ci"] = f"[{lev(np.percentile(k_boot_s, 2.5))}, {lev(np.percentile(k_boot_s, 97.5))}]"
+v["k_strat_rows"] = [strat_row(*row) for row in k_rows]
+def _z(x, d=1, sign=True):
+    return tp(0.0, d) if abs(x) < 0.5 * 10 ** (-d - 2) else tp(x, d, sign)
+
+
+v["k_decomp_rows"] = [[lev(L), tp(a, 1), _z(b), _z(c), _z(d), _z(e, 2), tp(f, 1)] for L, a, b, c, d, e, f in k_decomp]
+v["k_boot_rows"] = [[("1 (i.i.d.)" if blk == 1 else f"{blk} days"),
+                     lev(np.percentile(bs, 50)), f"[{lev(np.percentile(bs, 2.5))}, {lev(np.percentile(bs, 97.5))}]",
+                     tp((bs < 1).mean(), 0), tp((bs > 2).mean(), 0)] for blk, bs in k_boot.items()]
+v["k_sens_rows"] = [[grp, lab, lev(val)] for grp, lab, val in k_sens]
+v["k_oos_rows"] = [[name, f"{lev(a)} ({lev(lo)}--{lev(hi)})" if lo != hi else lev(a),
+                    tp(m["cagr"]), tp(m["vol"]), tn(m["sharpe"]), tp(m["mdd"]), num(sres.wealth.iloc[-1] * cap, 0)]
+                   for name, a, lo, hi, m, sres in oos_rows]
+d2 = {row[0]: row for row in k_decomp}
+bh_m = k_rows[0][2]
+two = next(r_ for r_ in k_rows if r_[0] == "VT 2x")
+fk = next(r_ for r_ in k_rows if r_[0] == "Full Kelly")
+three = next(r_ for r_ in k_rows if r_[0] == "VT 3x")
+four = next(r_ for r_ in k_rows if r_[0] == "VT 4x")
+_eq3 = (1 + kelly.portfolio_return(k_r, k_rl, k_rb, 3.0)) / (3.0 * (1 + k_r.values))
+breach3 = list(k_r.index[_eq3 < 0.25])
+oos = {r_[0]: r_ for r_ in oos_rows}
+oos_full = oos["Estimated full Kelly (real time)"]
+oos_bh = oos["VT buy and hold"]
+boot21 = k_boot[21]
+v["k_est_text"] = (
+    f"With daily rebalancing, the variance that governs compounding is the variance of daily returns. Using it, the "
+    f"frictionless Kelly exposure is {lev(L_d)}; with the assumed borrowing spread it falls to {lev(L_s)}. The exact "
+    f"daily recursion, which needs neither the diffusion approximation nor normality, is maximised at {lev(L_ep_fric)} "
+    f"without frictions and at {lev(L_ep_main)} with the spread and rebalancing costs, close to the theoretical "
+    f"values. The monthly variance gives {lev(L_m)}: because daily returns are negatively autocorrelated "
+    "(Section~3), the Kelly exposure depends on the rebalancing frequency it is meant for. All these figures are "
+    "computed on the full sample and are therefore in-sample and hindsight-calibrated: they describe what would "
+    "have maximised growth over this particular history, not an achievable ex-ante optimum.")
+v["k_strat_text"] = (
+    f"Leverage raised the historical CAGR only up to a point. Full Kelly ({lev(L_s)}) and 2x ended with about "
+    f"{num(fk[3].wealth.iloc[-1] * cap / 1000, 0)}k and {num(two[3].wealth.iloc[-1] * cap / 1000, 0)}k against "
+    f"{num(k_rows[0][3].wealth.iloc[-1] * cap / 1000, 0)}k for buy and hold, a gain of roughly "
+    f"{tp(fk[2]['cagr'] - bh_m['cagr'], 1)} a year, bought with maximum drawdowns of {tp(fk[2]['mdd'], 0)} and "
+    f"{tp(two[2]['mdd'], 0)} instead of {tp(bh_m['mdd'], 0)}. Their Sharpe ratios are lower than buy and hold, not "
+    "higher: leverage financed above the cash rate scales risk more than excess return. "
+    + (f"At 3x, the CAGR drops to {tp(three[2]['cagr'])}, " if three[2] is not None else "At 3x the strategy fails, ")
+    + (f"and at 4x to {tp(four[2]['cagr'])}" if four[2] is not None else "and 4x is insolvent")
+    + f" with a {tp(four[2]['mdd'], 0) if four[2] is not None else '100%'} drawdown: beyond the optimum, more leverage "
+    "lowers long-run growth. Quarter and half Kelly give up most of the growth gain but cut drawdowns sharply, the "
+    "usual argument for fractional Kelly. The four objectives that appear in this table, log growth, Sharpe ratio, "
+    "maximum drawdown and terminal wealth in one realised path, are different and point to different exposures.")
+v["k_margin_text"] = (
+    "The simulation is frictionless in one important respect: it assumes the target exposure can always be "
+    "restored at the close. In practice, a US margin account is limited by Regulation T to an initial loan of 50\\% "
+    "of the purchase price (2x), and FINRA Rule 4210 requires equity of at least 25\\% of the position's value, "
+    "with many brokers demanding more. The last column counts the days on which equity fell below 25\\% of "
+    f"assets before rebalancing, a proxy for a margin call. A 3x position, which starts with 33\\% equity, breaches "
+    f"the threshold on {three[3].margin_breaches} days ({', '.join(dt(d) for d in breach3)}), when VT fell by more "
+    "than 11\\% in a single session; "
+    "a 4x position starts at the 25\\% limit and breaches it on almost every down day. A forced sale at such "
+    "moments would lock in the loss and break the constant-leverage path assumed here.")
+v["mdd_1x"] = tp(abs(bh_m["mdd"]), 0)
+v["mdd_fk"] = tp(abs(fk[2]["mdd"]), 0)
+v["mdd_2x"] = tp(abs(two[2]["mdd"]), 0)
+v["k_drag_text"] = (
+    f"Over the full sample, VT's arithmetic mean return was {tp(k_mu)} a year, but its log growth only "
+    f"{tp(k_mu - k_drag_1x)}: the difference, {tp(k_drag_1x)}, is the ordinary volatility drag that affects any "
+    f"risky investment, close to $\\tfrac{{1}}{{2}}\\sigma^2 = {tp(0.5 * k_s2d)}$. Leverage adds a second, distinct "
+    "effect. Table~\\ref{tab:kdecomp} decomposes the realised log growth of each strategy exactly into five parts: "
+    "$L$ times the log growth of VT; financing at the T-bill rate; the borrowing spread; the compounding gap $D_T(L)$; "
+    f"and trading costs. At 2x, the compounding gap costs {tp(-d2[2.0][4])} a year, more than the T-bill financing "
+    f"({tp(-d2[2.0][2])}) or the spread ({tp(-d2[2.0][3])}), and costs are negligible. At 3x the gap grows to "
+    f"{tp(-d2[3.0][4])}, roughly in proportion to $L(L-1)$ as the approximation predicts.")
+v["k_path_text"] = (
+    "The gap is path-dependent. If VT gains 10\\% and then loses 9.09\\%, it is back where it started; a daily-reset "
+    "2x position gains 20\\% and then loses 18.18\\%, ending 1.8\\% lower ($1.2 \\times 0.8182 = 0.982$). Over the "
+    f"sample, the exact gap at 2x reached {num(D2_exact[-1], 3)} in log terms (approximation {num(D2_approx[-1], 3)}), "
+    "so the frictionless 2x position ended at "
+    f"USD {num(W2_fric.iloc[-1] * cap, 0)} against USD {num(W2_ref[-1] * cap, 0)} for the geometric reference. "
+    "Most of the gap accumulated in the 2008--2009 and 2020 crises, when daily variance was highest. The reference "
+    "is a decomposition device, not an investable strategy. Compared with another common benchmark, twice the "
+    f"cumulative simple return of VT (USD {num(naive_2x * cap, 0)}), the daily-reset position also ended lower in "
+    "this sample, but that comparison has no fixed sign: in a steady trend with low volatility, daily resetting "
+    "compounds gains and can beat the simple multiple.")
+v["k_unc_text"] = (
+    f"Kelly leverage inherits the imprecision of the expected return. With $\\hat\\mu - r_f = {tp(k_mu - k_rf)}$ "
+    f"estimated with a standard error of {tp(k_se_mu)}, the approximate standard error of $L^*$ is "
+    f"$1/(\\sigma\\sqrt{{T}}) \\approx {num(L_se, 2)}$. The block bootstrap confirms it: with 21-day blocks, the "
+    f"95\\% interval runs from {lev(np.percentile(boot21, 2.5))} to {lev(np.percentile(boot21, 97.5))}, the "
+    f"probability that the true optimum is below 1x is {tp((boot21 < 1).mean(), 0)}, and the results hardly depend "
+    "on the block length. Table~\\ref{tab:ksens} shows that plausible changes to the expected return, the variance "
+    f"or the period move the estimate by about one unit of leverage or more: an excess return of 3\\% instead of the historical {tp(k_mu - k_rf)} "
+    f"gives {lev(kelly.kelly_leverage(k_rf + 0.03, k_s2d, k_rf))}; the GARCH long-run variance gives "
+    f"{lev(kelly.kelly_leverage(k_mu, g_uncond_vol ** 2, k_rf))}; and the five-year sub-periods range from "
+    f"{lev(min(x for g_, _, x in k_sens if g_ == 'Sub-period'))} to {lev(max(x for g_, _, x in k_sens if g_ == 'Sub-period'))}.")
+v["k_oos_text"] = (
+    f"To remove hindsight, Kelly exposure is re-estimated at every month end from {dt(oos_L.index[0])}, after a "
+    f"{TRAIN_YEARS}-year training period, using only data available at that date: the expanding-window mean excess "
+    "return, the expanding-window daily variance and the current T-bill yield plus the spread. The estimate is held "
+    f"for the next month and rebalanced daily. It ranged from {lev(oos_L.min())} to {lev(oos_L.max())}, starting at "
+    f"{lev(oos_L.iloc[0])} because the training period was dominated by the 2008 crash"
+    + ("" if oos_cap_binds else "; caps at 1.5x or 2x would never have bound")
+    + f". Out of sample, estimated full Kelly earned {tp(oos_full[4]['cagr'])} a year against "
+    f"{tp(oos_bh[4]['cagr'])} for buy and hold"
+    + (", with higher volatility and a lower Sharpe ratio" if oos_full[4]["sharpe"] < oos_bh[4]["sharpe"] else "")
+    + "; the leverage that looks optimal in hindsight was not identifiable in real time. "
+    + ("Fixed 2x did better over this particular period, which began after the crash, but choosing it also relies "
+       "on hindsight." if oos["VT 2x"][4]["cagr"] > oos_bh[4]["cagr"] else ""))
+
+
+v["takeaways"] = [
+    f"Over {num(years, 1)} years, VT returned {tp(full['cagr'])} a year with dividends reinvested, of which roughly "
+    f"{tp(full['cagr'] - cagr(px))} a year came from dividends. "
+    + (f"These figures match Vanguard's published market-price returns to within {num(val_max_gap * 100, 2)} "
+       "percentage point." if val_rows else ""),
+    f"Measured on monthly returns, annualised volatility is {tp(full['vol'])}; scaling daily volatility by "
+    f"$\\sqrt{{252}}$ gives {tp(full['vol_d'])} because daily returns are negatively autocorrelated. The maximum "
+    f"drawdown was {tp(full['mdd'], 0)} during the global financial crisis.",
+    f"The Sharpe ratio of {tn(full['sharpe'])} has a 95\\% confidence interval of {ci(full)}: eighteen years of "
+    "data are barely enough to distinguish it from zero.",
+    f"Daily returns have fat tails (kurtosis {tn(kurt, 1)}) and strongly persistent volatility (GARCH persistence "
+    f"{num(g_persist, 3)}, half-life of about {num(g_half_life, 0)} trading days). Out of sample, a GARCH(1,1)-$t$ "
+    "model gives the best variance forecasts by the QLIKE criterion, but its edge over a simple EWMA is not "
+    "statistically significant. It passes the 5\\% VaR backtest, unlike rolling historical and normal VaR, whose "
+    "breaches cluster.",
+    f"After correcting for multiple testing, the only rejection of the random walk is a small negative "
+    f"autocorrelation of daily returns ({tn(ac_freq[0][2], 3)}), not detectable at weekly and monthly frequencies. "
+    "No calendar effect is detected, and moving-average timing rules underperformed buy and hold whatever the "
+    "window and execution lag.",
+    f"In hindsight, a Kelly exposure of about {lev(L_s)} would have maximised growth after borrowing costs, but its "
+    f"95\\% bootstrap interval runs from {lev(np.percentile(k_boot_s, 2.5))} to {lev(np.percentile(k_boot_s, 97.5))} "
+    "and a real-time estimate did not beat buy and hold. Leverage raised the drawdown of 2008--2009 from "
+    f"{tp(abs(bh_m['mdd']), 0)} to {tp(abs(two[2]['mdd']), 0)} at 2x, and the compounding gap cost "
+    f"{tp(-d2[2.0][4])} a year at that exposure.",
+    f"For a Swiss franc investor, the weaker dollar cut the annualised return by {tp(full['cagr'] - cagr_chf)} "
+    f"({tp(cagr_chf)} in CHF), before taxes.",
+]
 
 env = jinja2.Environment(
     block_start_string=r"\BLOCK{", block_end_string="}", variable_start_string=r"\VAR{",

@@ -22,6 +22,8 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends latexmk texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended > /dev/null
       - run: pip install -r requirements.txt
       - run: python telecharger.py
+      - name: Tests numeriques (Kelly, levier)
+        run: python tests/test_kelly.py
       - name: Regenerer le rapport VT (sans requete Yahoo)
         run: python analysis.py
       - name: Mettre a jour le site GitHub Pages
