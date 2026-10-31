@@ -247,7 +247,7 @@ $\mu$ (\% per day) & 0.0846 & 0.0110 \\
 $\omega$ & 0.0199 & 0.0041 \\
 $\alpha$ & 0.1345 & 0.0134 \\
 $\beta$ & 0.8583 & 0.0125 \\
-$\nu$ (degrees of freedom) & 6.1515 & 0.5503 \\
+$\nu$ (degrees of freedom) & 6.1515 & 0.5502 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -271,16 +271,16 @@ The model $\sigma_t^2 = \omega + \alpha\,\varepsilon_{t-1}^2 + \beta\,\sigma_{t-
 \midrule
 5\% & Historical (250 days) & 5.20\% & 214 / 206 & 0.558 & $<$ 0.001 & $<$ 0.001 \\
 5\% & Normal (250 days) & 5.22\% & 215 / 206 & 0.511 & $<$ 0.001 & $<$ 0.001 \\
-5\% & GARCH(1,1)-t & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
+5\% & GARCH(1,1)-t & 5.30\% & 218 / 206 & 0.385 & 0.877 & 0.678 \\
 1\% & Historical (250 days) & 1.36\% & 56 / 41 & 0.027 & $<$ 0.001 & $<$ 0.001 \\
 1\% & Normal (250 days) & 2.38\% & 98 / 41 & $<$ 0.001 & $<$ 0.001 & $<$ 0.001 \\
-1\% & GARCH(1,1)-t & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
+1\% & GARCH(1,1)-t & 1.29\% & 53 / 41 & 0.075 & 0.005 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 \note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
 
-Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\% (breach rate 5.25\%; $p$-values 0.467 and 0.410). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
+Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts, from a model estimated with a zero mean, pass both tests at 5\% (breach rate 5.30\%; $p$-values 0.385 and 0.877). At 1\%, their breach rate of 1.29\% is acceptable ($p = 0.075$), but extreme losses still arrive in clusters ($p = 0.005$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
 
 \begin{table}[H]
 \small
@@ -289,16 +289,16 @@ Rolling historical and normal VaR react slowly to changes in volatility. Their b
 \toprule
 \textbf{Level} & \textbf{Mean specification} & \textbf{Breach rate} & \textbf{Breaches / exp.} & \textbf{Kupiec} & \textbf{Christoff.} & \textbf{CC} \\
 \midrule
-5\% & Zero mean, estimated as such (main) & 5.25\% & 216 / 206 & 0.467 & 0.410 & 0.547 \\
-5\% & ML mean kept & 6.10\% & 251 / 206 & 0.002 & 0.840 & 0.007 \\
-5\% & ML parameters, mean set to zero afterwards & 5.35\% & 220 / 206 & 0.313 & 0.929 & 0.599 \\
-1\% & Zero mean, estimated as such (main) & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
-1\% & ML mean kept & 1.46\% & 60 / 41 & 0.006 & 0.012 & $<$ 0.001 \\
+5\% & Zero mean, estimated as such (main) & 5.30\% & 218 / 206 & 0.385 & 0.877 & 0.678 \\
+5\% & ML mean kept & 6.08\% & 250 / 206 & 0.002 & 0.814 & 0.009 \\
+5\% & ML parameters, mean set to zero afterwards & 5.32\% & 219 / 206 & 0.348 & 0.850 & 0.632 \\
+1\% & Zero mean, estimated as such (main) & 1.29\% & 53 / 41 & 0.075 & 0.005 & 0.004 \\
+1\% & ML mean kept & 1.48\% & 61 / 41 & 0.004 & 0.014 & $<$ 0.001 \\
 1\% & ML parameters, mean set to zero afterwards & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
-The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-likelihood location estimate (0.085\% a day) lies well above the sample mean (0.033\%), because negative skewness pulls the mean below the centre of the distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to 6.10\% and 1.46\%, which the coverage tests reject. The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the conclusion rests on the treatment of the mean, not on how it is imposed.
+The specification of the conditional mean matters. With a symmetric Student-$t$ distribution, the maximum-likelihood location estimate (0.085\% a day) lies well above the sample mean (0.033\%), because negative skewness pulls the mean below the centre of the distribution. Keeping that estimate shifts the VaR upwards and raises the breach rates to 6.08\% and 1.48\%, which the coverage tests reject. The main specification therefore estimates the model with the mean fixed at zero, the usual convention at a one-day horizon. Setting the mean to zero only after estimation gives almost the same breaches, so the conclusion rests on the treatment of the mean, not on how it is imposed.
 
 \keep{16}\subsection{Variance forecasts: out-of-sample comparison}
 \begin{table}[H]
@@ -310,16 +310,16 @@ The specification of the conditional mean matters. With a symmetric Student-$t$ 
 \midrule
 1 day & Historical variance (250 days) & 1.087 & 20.6 & 3 & 3.87 & $<$ 0.001 \\
 1 day & EWMA ($\lambda = 0.94$) & 0.819 & 17.4 & 2 & -- & -- \\
-1 day & GARCH(1,1)-$t$ & 0.797 & 16.2 & 1 & $-$1.95 & 0.051 \\
+1 day & GARCH(1,1)-$t$ & 0.795 & 16.2 & 1 & $-$2.20 & 0.028 \\
 \midrule{}21 days & Historical variance (250 days) & 4.312 & 2,843.1 & 3 & 1.92 & 0.055 \\
 21 days & EWMA ($\lambda = 0.94$) & 4.123 & 2,936.3 & 2 & -- & -- \\
-21 days & GARCH(1,1)-$t$ & 4.058 & 3,338.0 & 1 & $-$1.31 & 0.190 \\
+21 days & GARCH(1,1)-$t$ & 4.050 & 3,318.8 & 1 & $-$1.47 & 0.141 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 \note{Variances in squared percent. Proxy: squared daily return (1 day) and realised variance, the sum of the next 21 squared daily returns (21 days). GARCH: zero-mean model re-estimated each year, multi-step forecasts from its persistence and long-run variance; EWMA and historical variance are held flat over the horizon. Rank by QLIKE. Diebold--Mariano statistics use a Newey--West variance (5 and 25 lags); a negative value favours the model over EWMA.}
 
-A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are also compared directly, out of sample, over the same period. QLIKE, $\log h_t + \hat\sigma_t^2/h_t$, and the mean squared error are both robust to noise in the variance proxy \citep{patton2011}; QLIKE penalises under-prediction of risk more heavily and is less dominated by a few extreme days. By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \citep{diebold1995} against EWMA gives $p = 0.051$ at one day and $p = 0.190$ at 21 days: the improvement over a model with a single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted 250-day variance ($p$ $<$ 0.001), and GARCH has a lower loss still. By MSE, the ranking changes at 21 days (the 250-day historical variance first), because squared errors are dominated by the few crisis months. The richer model helps describe volatility, but its forecasting advantage is modest.
+A good VaR backtest does not show that a model forecasts variance well, so the three variance forecasts are also compared directly, out of sample, over the same period. QLIKE, $\log h_t + \hat\sigma_t^2/h_t$, and the mean squared error are both robust to noise in the variance proxy \citep{patton2011}; QLIKE penalises under-prediction of risk more heavily and is less dominated by a few extreme days. By QLIKE, GARCH ranks first at both horizons, but the Diebold--Mariano test \citep{diebold1995} against EWMA gives $p = 0.028$ at one day and $p = 0.141$ at 21 days: the improvement over a model with a single fixed parameter is not statistically significant. At one day, EWMA clearly beats the equally weighted 250-day variance ($p$ $<$ 0.001), and GARCH has a lower loss still. By MSE, the ranking changes at 21 days (the 250-day historical variance first), because squared errors are dominated by the few crisis months. The richer model helps describe volatility, but its forecasting advantage is modest.
 
 % ---------------------------------------------------------------- 3
 \keep{24}
@@ -786,7 +786,7 @@ Leverage illustrates the same point from another angle. Over this sample, a Kell
 On risk, the richer models help to describe volatility, but their forecasting advantage over a simple exponentially weighted average is modest, and every model still underestimates how extreme losses cluster. For long-term investors, the lessons are about horizon and discipline rather than prediction: the probability of loss falls with the holding period but remains uncertain and not negligible, and missing a handful of days in the middle of a crisis is as costly as suffering the worst of it.
 
 \section*{Data, methods and reproducibility}
-\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.18, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. The five numerical checks of Section~\ref{sec:kelly} passed on this run (largest error 1.6e-14); they are also run as \texttt{tests/test\_kelly.py} before each update. These analyses are descriptive and historical; they do not constitute investment advice.}
+\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.17, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. The five numerical checks of Section~\ref{sec:kelly} passed on this run (largest error 1.6e-14); they are also run as \texttt{tests/test\_kelly.py} before each update. These analyses are descriptive and historical; they do not constitute investment advice.}
 
 \begin{thebibliography}{99}
 \footnotesize
