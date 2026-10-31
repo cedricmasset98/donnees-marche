@@ -151,6 +151,21 @@ y_full = y_tr.drop(partials)
 
 # Rolling volatility
 roll_vol = r_tr.rolling(DAYS_PER_YEAR).std() * np.sqrt(DAYS_PER_YEAR)
+# EWMA volatility (RiskMetrics, lambda = 0.94, zero mean): reacts like GARCH, without the
+# "ghost" steps of an equally weighted window when an extreme day enters and leaves it
+EWMA_LAMBDA = 0.94
+
+
+def ewma_vol(r, lam=EWMA_LAMBDA, seed=25):
+    x = np.asarray(r, float)
+    var = np.empty_like(x)
+    var[0] = np.mean(x[:seed] ** 2)
+    for t in range(1, len(x)):
+        var[t] = lam * var[t - 1] + (1 - lam) * x[t - 1] ** 2
+    return pd.Series(np.sqrt(var * DAYS_PER_YEAR), index=r.index)
+
+
+ew_vol = ewma_vol(r_tr).iloc[63:]          # drop the burn-in quarter
 
 # Drawdowns (total return)
 dd = drawdown(tr)
@@ -786,15 +801,16 @@ def c_annual():
 
 
 def c_vol():
-    fig, ax = plt.subplots(figsize=(W, 2.4))
-    ax.plot(garch_vol.index, garch_vol, color=ORANGE, lw=0.7, alpha=0.9, label="GARCH(1,1)-t conditional volatility")
-    ax.plot(roll_vol.index, roll_vol, color=BLUE, lw=1.1, label="One-year rolling volatility")
-    ax.axhline(full["vol"], color=GREY, lw=0.8, ls="--")
-    ax.text(roll_vol.index[-1], full["vol"] + 0.015, f"full period, monthly returns: {pct(full['vol'])}",
-            color=GREY, fontsize=8, ha="right")
+    fig, ax = plt.subplots(figsize=(W, 2.5))
+    ax.plot(garch_vol.index, garch_vol, color=ORANGE, lw=0.6, alpha=0.75,
+            label="GARCH(1,1)-$t$, full-sample parameters")
+    ax.plot(ew_vol.index, ew_vol, color=BLUE, lw=0.9, label=r"EWMA, $\lambda$ = 0.94")
+    ref = full["vol_d"]
+    ax.axhline(ref, color=GREY, lw=0.8, ls="--", label=f"Full period: {pct(ref)}")
+    top = max(garch_vol.max(), ew_vol.max())
+    ax.set_ylim(0, np.ceil(top * 1.08 * 10) / 10)
     ax.yaxis.set_major_formatter(fmt_pct)
-    ax.set_ylim(0, min(1.0, garch_vol.max() * 1.05))
-    ax.set_ylabel("Annualised volatility")
+    ax.set_ylabel(r"Annualised volatility (daily $\times\sqrt{252}$)")
     year_axis(ax)
     ax.legend(loc="upper right", fontsize=7.5)
     save(fig, "volatility")
@@ -1039,9 +1055,15 @@ v["annual_note"] = (
       f"{worst_y} ({tp(y_full[worst_y], 1, True)}); {int((y_full < 0).sum())} years were negative.")
 v["vol_freq_rows"] = [[name, f"{n:,}", tp(vol)] for name, n, vol in vol_freq]
 v["vol_text"] = (
-    f"Volatility varies sharply across regimes: the one-year rolling estimate ranges from {tp(roll_vol.min(), 0)} "
-    f"(year ending {dt(roll_vol.idxmin())}) to {tp(roll_vol.max(), 0)} (year ending {dt(roll_vol.idxmax())}), and "
-    f"the GARCH conditional volatility peaks at {tp(garch_vol.max(), 0)} on {dt(garch_vol.idxmax())}.\n\n"
+    f"Volatility varies sharply across regimes. The exponentially weighted estimate ranges from "
+    f"{tp(ew_vol.min(), 0)} ({mon(ew_vol.idxmin())}) to {tp(ew_vol.max(), 0)} ({dt(ew_vol.idxmax())}), and the "
+    f"GARCH conditional volatility peaks at {tp(garch_vol.max(), 0)} on {dt(garch_vol.idxmax())}. Both measures "
+    "react within days to a shock and decay as markets calm down. An equally weighted one-year window would "
+    "instead keep an extreme day at full weight for exactly 252 sessions and then drop it abruptly, creating "
+    "plateaus that do not reflect the actual level of risk. Both curves use daily returns scaled by $\\sqrt{252}$, "
+    f"so the reference line is the full-period figure on the same basis ({tp(full['vol_d'])}). The GARCH curve uses "
+    "parameters estimated on the whole sample and is therefore descriptive; the out-of-sample forecasts are "
+    "evaluated in Section~2.\n\n"
     "The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by "
     "$\\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated "
     f"(Section~3), so daily data annualised with $\\sqrt{{252}}$ give {tp(vol_freq[0][2])}, whereas monthly data "

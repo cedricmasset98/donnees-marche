@@ -129,7 +129,7 @@ Probability of loss over 1 / 5 / 10 years: block bootstrap & 24\% / 10\% / 4\% \
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{volatility.pdf}
-\caption{Annualised volatility: one-year rolling window of daily returns and GARCH(1,1)-$t$ conditional volatility (daily, $\times\sqrt{252}$).}
+\caption{Annualised daily volatility: exponentially weighted moving average (RiskMetrics, $\lambda = 0.94$) and GARCH(1,1)-$t$ conditional volatility with parameters estimated on the full sample. Dashed line: full-period volatility on the same daily basis.}
 \end{figure}
 
 \begin{table}[H]
@@ -146,7 +146,7 @@ Quarterly & 74 & 17.8\% \\
 \bottomrule
 \end{tabularx}
 \end{table}
-Volatility varies sharply across regimes: the one-year rolling estimate ranges from 7\% (year ending 14 Dec 2017) to 49\% (year ending 23 Jul 2009), and the GARCH conditional volatility peaks at 111\% on 17 Mar 2020.
+Volatility varies sharply across regimes. The exponentially weighted estimate ranges from 4\% (Nov 2017) to 85\% (23 Oct 2008), and the GARCH conditional volatility peaks at 111\% on 17 Mar 2020. Both measures react within days to a shock and decay as markets calm down. An equally weighted one-year window would instead keep an extreme day at full weight for exactly 252 sessions and then drop it abruptly, creating plateaus that do not reflect the actual level of risk. Both curves use daily returns scaled by $\sqrt{252}$, so the reference line is the full-period figure on the same basis (20.4\%). The GARCH curve uses parameters estimated on the whole sample and is therefore descriptive; the out-of-sample forecasts are evaluated in Section~2.
 
 The annualised level also depends on the sampling frequency. Scaling a $k$-period standard deviation by $\sqrt{k}$ is valid only if returns are serially uncorrelated. Daily returns are negatively autocorrelated (Section~3), so daily data annualised with $\sqrt{252}$ give 20.4\%, whereas monthly data give 16.6\%. The ratio of the two variances, 0.66, is of the same order as the variance ratio estimated in Section~3 at a 20-day horizon (0.76), given the sampling error of only 220 monthly observations. This report therefore uses monthly returns for annualised volatility and for the Sharpe and Sortino ratios.
 
@@ -242,7 +242,7 @@ $\mu$ (\% per day) & 0.0846 & 0.0110 \\
 $\omega$ & 0.0199 & 0.0041 \\
 $\alpha$ & 0.1345 & 0.0134 \\
 $\beta$ & 0.8583 & 0.0125 \\
-$\nu$ (degrees of freedom) & 6.1515 & 0.5502 \\
+$\nu$ (degrees of freedom) & 6.1515 & 0.5503 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -266,16 +266,16 @@ The model $\sigma_t^2 = \omega + \alpha\,\varepsilon_{t-1}^2 + \beta\,\sigma_{t-
 \midrule
 5\% & Historical (250 days) & 5.20\% & 214 / 206 & 0.558 & $<$ 0.001 & $<$ 0.001 \\
 5\% & Normal (250 days) & 5.22\% & 215 / 206 & 0.511 & $<$ 0.001 & $<$ 0.001 \\
-5\% & GARCH(1,1)-t & 5.32\% & 219 / 206 & 0.348 & 0.850 & 0.632 \\
+5\% & GARCH(1,1)-t & 5.35\% & 220 / 206 & 0.313 & 0.929 & 0.599 \\
 1\% & Historical (250 days) & 1.36\% & 56 / 41 & 0.027 & $<$ 0.001 & $<$ 0.001 \\
 1\% & Normal (250 days) & 2.38\% & 98 / 41 & $<$ 0.001 & $<$ 0.001 & $<$ 0.001 \\
 1\% & GARCH(1,1)-t & 1.26\% & 52 / 41 & 0.102 & 0.004 & 0.004 \\
 \bottomrule
 \end{tabularx}
 \end{table}
-\note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. The GARCH forecasts use a zero conditional mean, standard at a one-day horizon; with the maximum-likelihood location estimate instead (0.085\% a day, well above the sample mean of 0.033\% because of negative skewness), the breach rates rise to 6.08\% and 1.48\%. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
+\note{One-day VaR on daily log returns, forecasts from 23 Jun 2010 to 30 Oct 2026 (4,115 days), each using only information available the day before. Historical and normal VaR use a 250-day rolling window. GARCH parameters are re-estimated at the start of each calendar year on all prior data, and the conditional variance is updated daily. The GARCH forecasts use a zero conditional mean, standard at a one-day horizon; with the maximum-likelihood location estimate instead (0.085\% a day, well above the sample mean of 0.033\% because of negative skewness), the breach rates rise to 6.10\% and 1.46\%. Kupiec: unconditional coverage; Christoffersen: independence; CC: conditional coverage (joint).}
 
-Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts pass both tests at 5\% (breach rate 5.32\%; $p$-values 0.348 and 0.850). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
+Rolling historical and normal VaR react slowly to changes in volatility. Their breach rates at 5\% are close to the target, but the breaches cluster in turbulent periods, so the independence test of \citet{christoffersen1998} rejects them decisively. At 1\%, both also fail the unconditional coverage test of \citet{kupiec1995}: 1.36\% and 2.38\% of breaches instead of 1\%. The GARCH(1,1)-$t$ forecasts pass both tests at 5\% (breach rate 5.35\%; $p$-values 0.313 and 0.929). At 1\%, their breach rate of 1.26\% is acceptable ($p = 0.102$), but extreme losses still arrive in clusters ($p = 0.004$ for independence). A symmetric $t$ distribution cannot reproduce the negative skewness of large losses; a skewed distribution or an extreme-value model would be the natural next step.
 
 % ---------------------------------------------------------------- 3
 \keep{24}
@@ -508,7 +508,7 @@ Yahoo's adjusted prices are not an official source, so the total returns used in
 The evidence describes a broadly diversified equity fund that has delivered the equity risk premium with the usual features of equity returns: fat tails, volatility that clusters and persists, and deep but temporary drawdowns. Prices are close to a random walk at the horizons that matter to investors; the one statistically robust anomaly, a small negative daily autocorrelation, is too small and too concentrated in crises to be exploited, and simple timing rules or calendar strategies did not add value. For long-term investors, the main lessons are about horizon and discipline rather than prediction: the probability of loss falls with the holding period but never reaches zero, and missing a handful of days in the middle of a crisis is as costly as suffering the worst of it.
 
 \section*{Data, methods and reproducibility}
-\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.17, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. These analyses are descriptive and historical; they do not constitute investment advice.}
+\note{Source: Yahoo Finance, downloaded with the \texttt{yfinance} library and updated automatically (GitHub repository \url{https://github.com/cedricmasset98/donnees-marche}). VT: daily closing prices and prices adjusted for dividends and splits (``Adj Close''). Risk-free rate: 13-week US T-bill (\texttt{\^{}IRX}). Currency: USD/CHF (\texttt{CHF=X}). Annualised returns use calendar time; annualised volatility, Sharpe and Sortino ratios use monthly returns; Sharpe confidence intervals follow \citet{mertens2002} and \citet{opdyke2007}, allowing for skewness and kurtosis. Bootstrap results use the fixed seed 20080626. Data file fingerprint (SHA-256 of \texttt{data/VT.csv}): \texttt{bfdcdac71dc770d2}. Software: Python 3.13.18, pandas 3.0.5, NumPy 2.5.3, SciPy 1.18.1, Matplotlib 3.11.2. These analyses are descriptive and historical; they do not constitute investment advice.}
 
 \begin{thebibliography}{9}
 \footnotesize

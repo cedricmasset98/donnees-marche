@@ -209,7 +209,7 @@
         <div class="chart short" id="c-dd"></div>
       </div>
       <div class="card">
-        <h3>Volatility</h3><p class="sub" id="vol-sub">One-year rolling volatility of daily returns and GARCH(1,1)-t conditional volatility (daily × √252).</p>
+        <h3>Volatility</h3><p class="sub" id="vol-sub">EWMA (λ = 0.94) and GARCH(1,1)-t conditional volatility, daily × √252.</p>
         <div class="chart" id="c-vol"></div>
       </div>
       <div class="card">
@@ -568,27 +568,25 @@ function renderPerf() {
 }
 
 /* ------------------------------------------------------------------ Risk */
-let rollVolCache = {};
-function rollingVol(ccy) {
-  if (rollVolCache[ccy]) return rollVolCache[ccy];
-  const out = new Array(N).fill(null), r = new Array(N).fill(0);
+let ewmaCache = {};
+function ewmaVol(ccy) {          // RiskMetrics EWMA, lambda = 0.94, zero mean, daily x sqrt(252)
+  if (ewmaCache[ccy]) return ewmaCache[ccy];
+  const lam = 0.94, out = new Array(N).fill(null), r = new Array(N).fill(0);
   for (let i = 1; i < N; i++) r[i] = (A[i] * (ccy === "CHF" ? FX[i] : 1)) / (A[i - 1] * (ccy === "CHF" ? FX[i - 1] : 1)) - 1;
-  let s = 0, s2 = 0;
-  for (let i = 1; i < N; i++) {
-    s += r[i]; s2 += r[i] * r[i];
-    if (i > 252) { s -= r[i - 252]; s2 -= r[i - 252] ** 2; }
-    if (i >= 252) { const m = s / 252; out[i] = Math.sqrt(Math.max(0, (s2 - 252 * m * m) / 251) * 252); }
-  }
-  return (rollVolCache[ccy] = out);
+  let v = 0; for (let i = 1; i <= 25; i++) v += r[i] * r[i]; v /= 25;
+  for (let i = 2; i < N; i++) { v = lam * v + (1 - lam) * r[i - 1] ** 2; if (i > 63) out[i] = Math.sqrt(v * 252); }
+  return (ewmaCache[ccy] = out);
 }
 function renderRisk() {
-  const { i0, i1 } = state, trd = [], ddd = [], vol = rollingVol(state.ccy), vold = [];
+  const { i0, i1 } = state, trd = [], ddd = [], vol = ewmaVol(state.ccy), vold = [], dr = [];
   let peak = -Infinity;
   for (let i = i0; i <= i1; i++) {
     const v = vA(i); peak = Math.max(peak, v);
     trd.push([T[i], +v.toFixed(3)]); ddd.push([T[i], +(v / peak - 1).toFixed(4)]);
     if (vol[i] != null) vold.push([T[i], +vol[i].toFixed(4)]);
+    if (i > i0) dr.push(vA(i) / vA(i - 1) - 1);
   }
+  const periodVol = sd(dr) * Math.sqrt(252);
   const zoom = [{ type: "inside", xAxisIndex: 0 }];
   const ctr = getChart("c-tr"), cdd = getChart("c-dd");
   ctr.group = "risk"; cdd.group = "risk"; echarts.connect("risk");
@@ -607,14 +605,16 @@ function renderRisk() {
   const g = D.analysis.garch, gser = [];
   if (state.ccy === "USD") for (let j = 0; j < g.dates.length; j++) { const t = Date.parse(g.dates[j] + "T00:00:00Z"); if (t >= T[i0] && t <= T[i1]) gser.push([t, g.vol[j]]); }
   $("vol-sub").textContent = state.ccy === "USD"
-    ? "One-year rolling volatility of daily returns and GARCH(1,1)-t conditional volatility (daily × √252)."
-    : "One-year rolling volatility of daily CHF returns (daily × √252). The GARCH model is estimated in USD only.";
+    ? "EWMA (λ = 0.94) and GARCH(1,1)-t conditional volatility with full-sample parameters, daily × √252. Dashed: the period's volatility on the same basis."
+    : "EWMA (λ = 0.94) volatility of daily CHF returns, daily × √252. Dashed: the period's volatility on the same basis. The GARCH model is estimated in USD only.";
   getChart("c-vol").setOption(base({ grid: { left: 46, right: 12, top: 30, bottom: 28 },
     xAxis: timeAxis(), yAxis: valAxis({ min: 0, axisLabel: { color: theme.muted, formatter: pctLabel(0) } }),
     tooltip: Object.assign(base().tooltip, { valueFormatter: v => fmtPct(v, 1) }),
     series: [
       ...(gser.length ? [{ name: "GARCH conditional", type: "line", data: gser, showSymbol: false, sampling: "lttb", lineStyle: { width: 0.8, color: theme.accent2, opacity: 0.85 }, itemStyle: { color: theme.accent2 } }] : []),
-      { name: "1-year rolling", type: "line", data: vold, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.6, color: theme.accent }, itemStyle: { color: theme.accent } },
+      { name: "EWMA", type: "line", data: vold, showSymbol: false, sampling: "lttb", lineStyle: { width: 1.3, color: theme.accent }, itemStyle: { color: theme.accent },
+        markLine: { silent: true, symbol: "none", lineStyle: { color: theme.muted, type: "dashed" }, data: [{ yAxis: +periodVol.toFixed(4) }],
+                    label: { show: true, position: "insideEndTop", distance: [0, 4], color: theme.ink2, fontSize: 11, backgroundColor: theme.surface, padding: [1, 4], formatter: () => "period average: " + fmtPct(periodVol) } } },
     ] }), true);
 
   // rolling 36-month Sharpe on the full history, shown in the period

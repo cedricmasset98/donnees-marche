@@ -126,7 +126,7 @@ Probability of loss over 1 / 5 / 10 years: block bootstrap & \VAR{ploss_boot} \\
 \begin{figure}[H]
 \centering
 \includegraphics[width=\linewidth]{volatility.pdf}
-\caption{Annualised volatility: one-year rolling window of daily returns and GARCH(1,1)-$t$ conditional volatility (daily, $\times\sqrt{252}$).}
+\caption{Annualised daily volatility: exponentially weighted moving average (RiskMetrics, $\lambda = 0.94$) and GARCH(1,1)-$t$ conditional volatility with parameters estimated on the full sample. Dashed line: full-period volatility on the same daily basis.}
 \end{figure}
 
 \begin{table}[H]
