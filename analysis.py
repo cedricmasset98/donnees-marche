@@ -746,12 +746,13 @@ with open("report/analysis_results.json", "w") as f:
     json.dump(export, f, separators=(",", ":"))
 
 # --------------------------------------------------------------------------
-# Charts (vector PDF, serif font matching the Times text of the report)
+# Charts (vector PDF, Computer Modern to match the LaTeX text of the report)
 # --------------------------------------------------------------------------
 FIG_DIR = "report/figures"
 os.makedirs(FIG_DIR, exist_ok=True)
 plt.rcParams.update({
-    "font.family": "STIXGeneral", "mathtext.fontset": "stix", "font.size": 9,
+    "font.family": "serif", "font.serif": ["cmr10"], "mathtext.fontset": "cm",
+    "axes.formatter.use_mathtext": True, "axes.unicode_minus": False, "font.size": 9,
     "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True,
     "grid.color": "#e1e0d9", "grid.linewidth": 0.6, "axes.edgecolor": "#b9b8b0",
     "axes.labelcolor": "#3d3c39", "xtick.color": "#3d3c39", "ytick.color": "#3d3c39",
